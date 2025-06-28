@@ -243,6 +243,15 @@
                 else messageElement.style.display = 'block'; // Show if message
             }
         }
+        
+        // Scrolls the chat history to the bottom - MOVED TO TOP FOR DEFINITION ORDER
+        function scrollToBottom() {
+            const chatHistoryElement = document.getElementById('chat-history');
+            if (chatHistoryElement) {
+                chatHistoryElement.scrollTop = chatHistoryElement.scrollHeight;
+            }
+        }
+
 
         // --- Save/Load Functions (using localStorage) ---
 
@@ -879,12 +888,12 @@
                     } else {
                         const errorData = result.error ? result.error.message : JSON.stringify(result);
                         const errorMessage = `Failed to generate description: API Error (${response.status} ${response.statusText}): ${errorData}. Check console for "Full API Response:".`;
-                        updateCreatorMessage(errorMessage, 'red');
+                        updateCreatorState(errorMessage, 'red');
                         console.error(errorMessage, result);
                     }
                 } catch (error) {
                     const errorMessage = `A squall hit during yarn spinning: ${error.message}. This might be due to a cursed URL or a network kraken. Check console for details.`;
-                    updateCreatorMessage(errorMessage, 'red');
+                    updateCreatorState(errorMessage, 'red');
                     console.error("Fetch error during description generation:", error);
                 } finally {
                     characterCreatorState.isGeneratingDescription = false;
@@ -1002,13 +1011,18 @@
             setupGameScreenListeners();
             updateCharacterProfileDisplay();
             updateChatHistoryDisplay();
-            initSpeechSynthesis(); // Initialize TTS when game screen loads
+            // Call initSpeechSynthesis AFTER the HTML is rendered to ensure elements exist
+            initSpeechSynthesis(); 
+
             // Initial greeting from SailSpinner if history is empty
             if (gameHistory.length === 0 && character) {
                 const initialNarrative = `Ahoy, ${character.name}! Welcome to the treacherous waters of the Azure Archipelago, a vast expanse ripe for plunder and peril. Yer voyage begins now. What be yer first order, Captain?`;
                 gameHistory.push({ type: 'narrative', text: initialNarrative });
                 updateChatHistoryDisplay();
-                speakNarrative(initialNarrative); // Speak initial narrative
+                // Add a small delay to ensure TTS engine is ready and DOM fully updated
+                setTimeout(() => {
+                    speakNarrative(initialNarrative); 
+                }, 500); // 500ms delay
             }
         }
 
@@ -1333,8 +1347,7 @@
                         }
 
                         importantLocations = parsedResponse.locations || importantLocations;
-                        importantPeople = parsedResponse.people || importantPeople;
-                        importantEvents = parsedResponse.events || importantEvents;
+                        importantPeople = parsedResponse.events || importantEvents;
 
                         updateCharacterProfileDisplay();
                         updateChatHistoryDisplay(false); // Hide typing indicator
@@ -1383,121 +1396,124 @@
 
         // --- TTS Functions ---
         function initSpeechSynthesis() {
-            if ('speechSynthesis' in window) {
+            if (!('speechSynthesis' in window)) {
+                console.warn("SpeechSynthesis API not supported in this browser.");
+                // Ensure elements exist before disabling
                 const ttsToggle = document.getElementById('tts-toggle');
                 const voiceSelect = document.getElementById('tts-voice-select');
                 const volumeSlider = document.getElementById('tts-volume-slider');
+                if(ttsToggle) ttsToggle.disabled = true;
+                if(voiceSelect) voiceSelect.disabled = true;
+                if(volumeSlider) volumeSlider.disabled = true;
+                updateMessage('SailSpinner\'s voice not supported in this browser, matey!', 'red');
+                return;
+            }
 
-                // Set initial states from global variables (loaded from localStorage)
-                // Check if elements exist before setting properties
-                if(ttsToggle) ttsToggle.checked = speechSynthesisEnabled;
-                if(volumeSlider) volumeSlider.value = speechVolume;
+            const ttsToggle = document.getElementById('tts-toggle');
+            const voiceSelect = document.getElementById('tts-voice-select');
+            const volumeSlider = document.getElementById('tts-volume-slider');
 
-                // Populate voices when they are loaded
-                const populateVoices = () => {
-                    availableVoices = speechSynthesis.getVoices();
-                    if(voiceSelect) voiceSelect.innerHTML = ''; // Clear existing options
+            // Set initial states from global variables (loaded from localStorage) - with null checks
+            // These elements might not exist yet if initSpeechSynthesis is called early by other means
+            if(ttsToggle) ttsToggle.checked = speechSynthesisEnabled;
+            if(volumeSlider) volumeSlider.value = speechVolume;
 
-                    let preferredMaleVoice = null;
-                    let preferredFemaleVoice = null;
+            const populateVoices = () => {
+                availableVoices = speechSynthesis.getVoices();
+                if(voiceSelect) voiceSelect.innerHTML = ''; // Clear existing options
 
-                    // Prioritize specific high-quality English voices
-                    availableVoices.forEach(voice => {
-                        if (voice.lang.startsWith('en')) { // Only consider English voices
-                            const lowerCaseName = voice.name.toLowerCase();
+                let preferredMaleVoice = null;
+                let preferredFemaleVoice = null;
 
-                            // Look for Google/Microsoft/Apple/Amazon voices
-                            if (lowerCaseName.includes('google') || lowerCaseName.includes('microsoft') || lowerCaseName.includes('apple') || lowerCaseName.includes('amazon')) {
-                                if ((lowerCaseName.includes('male') || lowerCaseName.includes('david') || lowerCaseName.includes('mark') || lowerCaseName.includes('alex')) && !preferredMaleVoice) {
-                                    preferredMaleVoice = voice;
-                                } else if ((lowerCaseName.includes('female') || lowerCaseName.includes('zira') || lowerCaseName.includes('helen')) && !preferredFemaleVoice) {
-                                    preferredFemaleVoice = voice;
-                                }
+                // Prioritize specific high-quality English voices
+                availableVoices.forEach(voice => {
+                    if (voice.lang.startsWith('en')) { // Only consider English voices
+                        const lowerCaseName = voice.name.toLowerCase();
+
+                        // Look for Google/Microsoft/Apple/Amazon voices
+                        if (lowerCaseName.includes('google') || lowerCaseName.includes('microsoft') || lowerCaseName.includes('apple') || lowerCaseName.includes('amazon')) {
+                            if ((lowerCaseName.includes('male') || lowerCaseName.includes('david') || lowerCaseName.includes('mark') || lowerCaseName.includes('alex')) && !preferredMaleVoice) {
+                                preferredMaleVoice = voice;
+                            } else if ((lowerCaseName.includes('female') || lowerCaseName.includes('zira') || lowerCaseName.includes('helen')) && !preferredFemaleVoice) {
+                                preferredFemaleVoice = voice;
                             }
                         }
-                    });
-
-                    // Add female preferred voice first, then male
-                    if (voiceSelect) { // Ensure voiceSelect exists
-                        if (preferredFemaleVoice) {
-                            const femaleOption = document.createElement('option');
-                            femaleOption.value = preferredFemaleVoice.name;
-                            femaleOption.textContent = `Female Voice (${preferredFemaleVoice.name})`;
-                            voiceSelect.appendChild(femaleOption);
-                        }
-                        if (preferredMaleVoice) {
-                            const maleOption = document.createElement('option');
-                            maleOption.value = preferredMaleVoice.name;
-                            maleOption.textContent = `Male Voice (${preferredMaleVoice.name})`;
-                            voiceSelect.appendChild(maleOption);
-                        }
-
-                        // Fallback: add any other English voices if no preferred ones were found
-                        if (voiceSelect.options.length === 0) {
-                            availableVoices.filter(v => v.lang.startsWith('en')).forEach(voice => {
-                                const option = document.createElement('option');
-                                option.value = voice.name;
-                                option.textContent = voice.name;
-                                voiceSelect.appendChild(option);
-                            });
-                        }
-
-                        // Set the selected voice in the dropdown based on localStorage or default
-                        if (selectedVoiceName) {
-                            voiceSelect.value = selectedVoiceName;
-                            selectedVoice = availableVoices.find(v => v.name === selectedVoiceName);
-                        } else if (voiceSelect.options.length > 0) {
-                            // If no saved voice, default to the first available option in the dropdown
-                            voiceSelect.selectedIndex = 0;
-                            selectedVoiceName = voiceSelect.value;
-                            selectedVoice = availableVoices.find(v => v.name === selectedVoiceName);
-                            localStorage.setItem('deadlySailsSelectedVoiceName', selectedVoiceName);
-                        }
                     }
-                    console.log("TTS Voices populated. Selected voice:", selectedVoice ? selectedVoice.name : 'None');
-                };
+                });
 
-                // Event listener for when voices are loaded/changed
-                speechSynthesis.onvoiceschanged = populateVoices;
-                // Call it immediately in case voices are already loaded
-                populateVoices();
+                // Add preferred voices
+                if (voiceSelect) { // Ensure voiceSelect exists before appending options
+                    if (preferredFemaleVoice) {
+                        const femaleOption = document.createElement('option');
+                        femaleOption.value = preferredFemaleVoice.name;
+                        femaleOption.textContent = `Female Voice (${preferredFemaleVoice.name})`;
+                        voiceSelect.appendChild(femaleOption);
+                    }
+                    if (preferredMaleVoice) {
+                        const maleOption = document.createElement('option');
+                        maleOption.value = preferredMaleVoice.name;
+                        maleOption.textContent = `Male Voice (${preferredMaleVoice.name})`;
+                        voiceSelect.appendChild(maleOption);
+                    }
 
-                // Add event listeners for TTS controls - only if elements exist
-                if(ttsToggle) {
-                    ttsToggle.addEventListener('change', () => {
-                        speechSynthesisEnabled = ttsToggle.checked;
-                        localStorage.setItem('deadlySailsSpeechEnabled', speechSynthesisEnabled);
-                        if (!speechSynthesisEnabled) {
-                            speechSynthesis.cancel(); // Stop speaking if turned off
-                        }
-                        console.log("TTS enabled:", speechSynthesisEnabled);
-                    });
-                }
+                    // Fallback: add any other English voices if no preferred ones were found
+                    if (voiceSelect.options.length === 0) {
+                        availableVoices.filter(v => v.lang.startsWith('en')).forEach(voice => {
+                            const option = document.createElement('option');
+                            option.value = voice.name;
+                            option.textContent = voice.name;
+                            voiceSelect.appendChild(option);
+                        });
+                    }
 
-                if(voiceSelect) {
-                    voiceSelect.addEventListener('change', () => {
+                    // Set the selected voice in the dropdown based on localStorage or default
+                    if (selectedVoiceName) {
+                        voiceSelect.value = selectedVoiceName;
+                        selectedVoice = availableVoices.find(v => v.name === selectedVoiceName);
+                    } else if (voiceSelect.options.length > 0) {
+                        // If no saved voice, default to the first available option in the dropdown
+                        voiceSelect.selectedIndex = 0;
                         selectedVoiceName = voiceSelect.value;
-                        selectedVoice = availableVoices.find(voice => voice.name === selectedVoiceName);
+                        selectedVoice = availableVoices.find(v => v.name === selectedVoiceName);
                         localStorage.setItem('deadlySailsSelectedVoiceName', selectedVoiceName);
-                        console.log("TTS voice changed to:", selectedVoiceName);
-                    });
+                    }
                 }
-                
-                if(volumeSlider) {
-                    volumeSlider.addEventListener('input', () => {
-                        speechVolume = parseFloat(volumeSlider.value);
-                        localStorage.setItem('deadlySailsSpeechVolume', speechVolume);
-                        console.log("TTS volume changed to:", speechVolume);
-                    });
-                }
+                console.log("TTS Voices populated. Selected voice:", selectedVoice ? selectedVoice.name : 'None');
+            };
 
-            } else {
-                // If Web Speech API is not supported - check if elements exist before disabling
-                if(document.getElementById('tts-toggle')) document.getElementById('tts-toggle').disabled = true;
-                if(document.getElementById('tts-voice-select')) document.getElementById('tts-voice-select').disabled = true;
-                if(document.getElementById('tts-volume-slider')) document.getElementById('tts-volume-slider').disabled = true;
-                updateMessage('SailSpinner\'s voice not supported in this browser, matey!', 'red');
-                console.warn("SpeechSynthesis API not supported in this browser.");
+            // Event listener for when voices are loaded/changed
+            speechSynthesis.onvoiceschanged = populateVoices;
+            // Call it immediately in case voices are already loaded
+            populateVoices(); // This needs to be called to populate initially
+
+
+            // Add event listeners for TTS controls - only if elements exist
+            if(ttsToggle) {
+                ttsToggle.addEventListener('change', () => {
+                    speechSynthesisEnabled = ttsToggle.checked;
+                    localStorage.setItem('deadlySailsSpeechEnabled', speechSynthesisEnabled);
+                    if (!speechSynthesisEnabled) {
+                        speechSynthesis.cancel(); // Stop speaking if turned off
+                    }
+                    console.log("TTS enabled:", speechSynthesisEnabled);
+                });
+            }
+
+            if(voiceSelect) {
+                voiceSelect.addEventListener('change', () => {
+                    selectedVoiceName = voiceSelect.value;
+                    selectedVoice = availableVoices.find(voice => voice.name === selectedVoiceName);
+                    localStorage.setItem('deadlySailsSelectedVoiceName', selectedVoiceName);
+                    console.log("TTS voice changed to:", selectedVoiceName);
+                });
+            }
+            
+            if(volumeSlider) {
+                volumeSlider.addEventListener('input', () => {
+                    speechVolume = parseFloat(volumeSlider.value);
+                    localStorage.setItem('deadlySailsSpeechVolume', speechVolume);
+                    console.log("TTS volume changed to:", speechVolume);
+                });
             }
         }
 
