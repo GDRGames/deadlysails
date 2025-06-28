@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deadly Sails</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cinzel Decorative and Lora for a pirate aesthetic -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700&family=Lora:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+    <style>
+        /* Apply Lora font family to body for general text */
+        body {
+            font-family: 'Lora', serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scroll due to background */
+            overflow-y: auto; /* Allow vertical scrolling if content overflows */
+        }
+
+        /* Specific styling for Cinzel Decorative font for headings/titles */
+        .font-cinzel {
+            font-family: 'Cinzel Decorative', serif;
+        }
+
+        /* Gold glow effect for titles */
+        .drop-shadow-gold {
+            text-shadow:
+                0 0 5px #ffcc00, /* Gold */
+                0 0 10px #ffcc00,
+                0 0 20px #ffaa00,
+                0 0 40px #ff8800,
+                0 0 80px #ffa000;
+        }
+
+        /* Custom scrollbar for better aesthetics - weathered wood/rope look */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #4A2B1A; /* Dark brown wood */
+            border-radius: 10px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: linear-gradient(to bottom, #8B4513, #5A2E0D); /* Saddle Brown to Darker Brown */
+            border-radius: 10px;
+            border: 1px solid #C4A484; /* Light brown edge */
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(to bottom, #A0522D, #6B3E18); /* Sienna to even darker brown */
+        }
+
+        /* Aged wood/sunken treasure shadow for interactive elements */
+        .shadow-aged {
+            box-shadow:
+                0 0 5px rgba(139, 69, 19, 0.7), /* SaddleBrown */
+                0 0 10px rgba(92, 45, 10, 0.7), /* Darker Brown */
+                0 0 15px rgba(184, 134, 11, 0.7); /* DarkGoldenRod */
+        }
+
+        /* Basic keyframes for pulse effect - like a beacon or treasure glint */
+        @keyframes pulse-once {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .animate-pulse-once {
+            animation: pulse-once 1.5s ease-out;
+        }
+
+        /* Keyframes for subtle background animation - like gentle waves or a shifting map */
+        @keyframes subtle-shift {
+            0% { background-position: 0% 0%; }
+            100% { background-position: 100% 100%; }
+        }
+
+        body {
+            background-image: url('https://www.transparenttextures.com/patterns/lined-paper.png'); /* Subtle parchment texture */
+            background-color: #0A1B2A; /* Deep navy blue for ocean/night sky */
+            background-repeat: repeat;
+            animation: subtle-shift 120s linear infinite alternate; /* Slow, subtle movement */
+            background-size: 200px 200px; /* Adjust as needed for texture size */
+        }
+
+        /* Keyframes for fade-in effect */
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+            animation: fade-in 1s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-white font-lora relative">
+    <!-- Main content area -->
+    <div id="app-container" class="relative z-10 flex flex-col items-center justify-center min-h-screen p-4">
+        <h1 class="text-5xl md:text-6xl font-cinzel font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-amber-600 drop-shadow-gold mb-8 text-center uppercase tracking-wider">
+            DEADLY SAILS
+        </h1>
+
+        <div id="game-content" class="w-full flex flex-col items-center">
+            <!-- Content will be injected here by JavaScript (Character Creator or Game Screen) -->
+        </div>
+    </div>
+
+    <!-- Modals will be dynamically added/removed here by JavaScript -->
+    <div id="modal-container"></div>
+
+    <script>
+        // Global game state variables
+        let character = null;
+        let gameHistory = [];
+        let importantLocations = [];
+        let importantPeople = [];
+        let importantEvents = [];
+        let currentScreen = 'characterCreator'; // 'characterCreator', 'game'
+
+        // Modals state (managed by direct DOM manipulation)
+        let showLocationsModal = false;
+        let showPeopleModal = false;
+        let showCommandsModal = false;
+        let showDistrictsModal = false; // Renamed to Hauntz but kept for consistency
+        let showLoreModal = false;
+        let showMicrophoneHelpModal = false;
+
+        // Reference for speech recognition API
+        let recognition = null;
+        let isListening = false;
+
+        // Text-to-Speech (TTS) variables
+        let speechSynthesisEnabled = localStorage.getItem('deadlySailsSpeechEnabled') === 'true'; // Load from localStorage
+        let selectedVoiceName = localStorage.getItem('deadlySailsSelectedVoiceName') || null; // Load from localStorage
+        let selectedVoice = null;
+        let speechVolume = parseFloat(localStorage.getItem('deadlySailsSpeechVolume') || '1.0'); // Load from localStorage
+        let availableVoices = []; // Cache for voices
+
+        // =====================================================================================================================================================
+        // IMPORTANT: API Key for Google Gemini
+        // This key will be provided by the Canvas environment when running in preview.
+        // If you download and host this file elsewhere (e.g., Itch.io), you will need to replace
+        // the empty string with your own valid Google Cloud API key and configure its HTTP referrer restrictions.
+        //
+        // How to get an API Key for external hosting:
+        // 1. Go to Google Cloud Console: https://console.cloud.google.com/
+        // 2. Create a new project or select an existing one.
+        // 3. Navigate to "APIs & Services" > "Credentials".
+        // 4. Click "Create Credentials" > "API Key".
+        // 5. IMPORTANT: You MUST restrict this API key. In the "API restrictions" section, select "Restrict key".
+        //    For "Application restrictions", choose "HTTP referrers (web sites)" and add the domains where your game will be hosted.
+        //    - For Itch.io, this might include your specific Itch.io game URL (e.g., `https://your-username.itch.io/your-game-name/*`) and `https://itch.io/*`.
+        //    - For local testing, you might need to add `http://localhost:*` or `http://127.0.0.1:*`.
+        //    - Ensure the "Generative Language API" is enabled in your Google Cloud project for this API key to function.
+        // WARNING: Embedding API keys directly in client-side code is generally insecure for production applications.
+        // For production, consider using a backend proxy to handle API calls securely.
+        const API_KEY = ""; // Keep this empty for Canvas preview to work automatically
+        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + API_KEY;
+        // =====================================================================================================================================================
+
+        // Define race data with stat modifiers (Only Human for Pirate theme)
+        const races = {
+            human: {
+                name: 'Human',
+                description: 'Versatile and resourceful, adapting to the harsh realities of the sea.',
+                modifiers: {}, // No specific modifiers
+            },
+        };
+
+        // Define class data with stat modifiers (Pirate themed)
+        const classes = {
+            marksman: {
+                name: 'Marksman',
+                description: 'A crack shot with pistols and rifles, capable of hitting a distant target even on choppy seas.',
+                modifiers: { dexterity: 2, intelligence: 1, luck: 1 },
+            },
+            swashbuckler: {
+                name: 'Swashbuckler',
+                description: 'A nimble and daring fighter, master of blades and acrobatic ship maneuvers.',
+                modifiers: { dexterity: 3, charisma: 1, strength: -1 },
+            },
+            cartographer: {
+                name: 'Cartographer',
+                description: 'A master of charts, navigation, and deciphering ancient maps to find hidden treasures.',
+                modifiers: { intelligence: 3, luck: 1, stamina: -1 },
+            },
+            shipwright: {
+                name: 'Shipwright',
+                description: 'A brilliant engineer and builder, capable of repairing ships, improvising gadgets, and improving naval armaments.',
+                modifiers: { intelligence: 3, stamina: 1, dexterity: -1 },
+            },
+            cannoneer: {
+                name: 'Cannoneer',
+                description: 'An ace with ship artillery and heavy weapons, able to load, aim, and devastate enemy vessels.',
+                modifiers: { strength: 2, stamina: 2, dexterity: -1 },
+            },
+            quartermaster: {
+                name: 'Quartermaster',
+                description: 'A respected figure on any ship, whose influence and sharp wit can rally the crew and negotiate favorable terms.',
+                modifiers: { charisma: 4, intelligence: 1, strength: -2 },
+            },
+            marine: {
+                name: 'Marine',
+                description: 'A disciplined combatant, proficient with naval tactics and boarding actions, and resilient in the heat of battle.',
+                modifiers: { strength: 2, stamina: 2, charisma: -1 },
+            },
+            seaDog: {
+                name: 'Sea Dog',
+                description: 'An experienced sailor, master of weathering storms, spotting distant sails, and navigating treacherous waters.',
+                modifiers: { stamina: 2, dexterity: 2, intelligence: -1 },
+            },
+        };
+
+        // Helper function to roll a single stat within the specified range (5-14)
+        const rollStat = () => Math.floor(Math.random() * (14 - 5 + 1)) + 5;
+
+        // --- Utility Functions ---
+
+        // Function to update a message displayed to the user
+        function updateMessage(msg, type = 'info') {
+            const messageElement = document.getElementById('game-message');
+            if (messageElement) {
+                // Adjust colors for pirate theme
+                let bgColor, textColor, borderColor;
+                if (type === 'info') {
+                    bgColor = 'bg-blue-900/50'; textColor = 'text-blue-200'; borderColor = 'border-blue-700';
+                } else if (type === 'red') {
+                    bgColor = 'bg-red-900/50'; textColor = 'text-red-200'; borderColor = 'border-red-700';
+                } else if (type === 'yellow') {
+                    bgColor = 'bg-yellow-900/50'; textColor = 'text-yellow-200'; borderColor = 'border-yellow-700';
+                } else { // Default to info colors if type is unknown
+                    bgColor = 'bg-blue-900/50'; textColor = 'text-blue-200'; borderColor = 'border-blue-700';
+                }
+
+                messageElement.textContent = msg;
+                messageElement.className = `${bgColor} ${textColor} ${borderColor} p-2 rounded-md mb-2 text-sm text-center`;
+                if (!msg) messageElement.style.display = 'none'; // Hide if empty
+                else messageElement.style.display = 'block'; // Show if message
+            }
+        }
+
+        // --- Save/Load Functions (using localStorage) ---
+
+        // Generate a UUID for save file IDs
+        function generateUUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function saveGame() {
+            if (!character || gameHistory.length === 0) {
+                updateMessage("Nothin' to save yet, Captain! Start yer adventure first.", 'yellow');
+                console.log("Save failed: No character or empty game history.");
+                return;
+            }
+
+            const saveId = generateUUID();
+            const timestamp = new Date().toISOString();
+            const saveName = character.name;
+
+            const gameState = {
+                character: character,
+                gameHistory: gameHistory,
+                importantLocations: importantLocations,
+                importantPeople: importantPeople,
+                importantEvents: importantEvents,
+                saveTimestamp: timestamp // Adding timestamp to the game state itself for robust loading
+            };
+
+            // Store the actual game state
+            localStorage.setItem(`deadlySailsSave_${saveId}`, JSON.stringify(gameState));
+            console.log(`Saved game state for ID: ${saveId}`);
+
+            // Update the list of save keys and their metadata
+            let saveKeys = JSON.parse(localStorage.getItem('deadlySailsSaveKeys') || '[]');
+            saveKeys.push({ id: saveId, name: saveName, timestamp: timestamp });
+            localStorage.setItem('deadlySailsSaveKeys', JSON.stringify(saveKeys));
+            console.log("Updated save keys:", saveKeys);
+
+
+            updateMessage(`Voyage saved as "${saveName}" on ${new Date(timestamp).toLocaleString()}!`, 'info');
+            populateSaveDropdown(); // Update the dropdown with the new save
+        }
+
+        function loadGame(saveId) {
+            if (!saveId) {
+                updateMessage("Choose a voyage to load, savvy?", 'yellow');
+                return;
+            }
+
+            try {
+                const savedState = localStorage.getItem(`deadlySailsSave_${saveId}`);
+                console.log(`Attempting to load saveId: ${saveId}`);
+                if (savedState) {
+                    const parsedState = JSON.parse(savedState);
+                    character = parsedState.character;
+                    gameHistory = parsedState.gameHistory;
+                    importantLocations = parsedState.importantLocations;
+                    importantPeople = parsedState.importantPeople;
+                    importantEvents = parsedState.importantEvents;
+
+                    currentScreen = 'game'; // Switch to game screen
+                    renderGameScreen(); // Re-render the game screen with loaded data
+                    updateMessage(`Loaded voyage for ${character.name} from ${new Date(parsedState.saveTimestamp || parsedState.timestamp).toLocaleString()}!`, 'info');
+                    console.log("Game loaded successfully:", character);
+                } else {
+                    updateMessage("No such voyage found, matey!", 'red');
+                    console.warn(`No save found for ID: ${saveId}`);
+                }
+            } catch (e) {
+                console.error("Error loading game:", e);
+                updateMessage("Ahoy! A squall hit while loading yer game. Save file might be corrupted.", 'red');
+            }
+        }
+
+        function deleteGame(saveId) {
+            if (!saveId) {
+                updateMessage("Select a voyage to scuttle, Captain!", 'yellow');
+                return;
+            }
+
+            // Remove the actual game state
+            localStorage.removeItem(`deadlySailsSave_${saveId}`);
+            console.log(`Deleted game state for ID: ${saveId}`);
+
+            // Update the list of save keys
+            let saveKeys = JSON.parse(localStorage.getItem('deadlySailsSaveKeys') || '[]');
+            saveKeys = saveKeys.filter(save => save.id !== saveId);
+            localStorage.setItem('deadlySailsSaveKeys', JSON.stringify(saveKeys));
+            console.log("Updated save keys after deletion:", saveKeys);
+
+            updateMessage("Voyage scuttled! It's gone to Davy Jones' Locker.", 'info');
+            populateSaveDropdown(); // Update the dropdown
+        }
+
+        function populateSaveDropdown() {
+            const dropdown = document.getElementById('save-game-dropdown');
+            if (!dropdown) {
+                console.log("Save dropdown element not found. Not on character creator screen.");
+                return; // Exit if not on character creator screen
+            }
+
+            dropdown.innerHTML = '<option value="">--- Select a Saved Voyage ---</option>';
+            let saveKeys = JSON.parse(localStorage.getItem('deadlySailsSaveKeys') || '[]');
+            console.log("Populating dropdown with save keys:", saveKeys);
+
+            const loadButton = document.getElementById('load-game-button');
+            const deleteButton = document.getElementById('delete-game-button');
+
+            if (saveKeys.length === 0) {
+                if (loadButton) loadButton.disabled = true;
+                if (deleteButton) deleteButton.disabled = true;
+                return;
+            }
+
+            saveKeys.forEach(save => {
+                const option = document.createElement('option');
+                option.value = save.id;
+                // Try to parse timestamp for better display, fallback to raw if error
+                let displayDate;
+                try {
+                    displayDate = new Date(save.timestamp).toLocaleString();
+                } catch (e) {
+                    displayDate = save.timestamp; // Fallback for invalid date strings
+                }
+                option.textContent = `${save.name} - ${displayDate}`;
+                dropdown.appendChild(option);
+            });
+
+            if (loadButton) loadButton.disabled = false;
+            if (deleteButton) deleteButton.disabled = false;
+        }
+
+        // --- Modals ---
+
+        // Renders a generic modal structure
+        function renderModal(title, contentHTML, onClose, borderColor = 'amber-600', titleColor = 'yellow-400') {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.innerHTML = `
+                <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div class="bg-gray-900 border-2 border-${borderColor} rounded-lg shadow-aged p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        <h3 class="text-2xl font-cinzel text-${titleColor} mb-4 border-b border-gray-700 pb-2">${title}</h3>
+                        <div class="text-gray-300 text-sm space-y-4">
+                            ${contentHTML}
+                        </div>
+                        <button id="modal-close-button"
+                            class="mt-6 px-4 py-2 bg-gradient-to-r from-red-700 to-orange-700 text-white font-bold rounded-lg shadow-md hover:from-red-800 hover:to-orange-800 transition-all duration-300">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-close-button').onclick = onClose;
+        }
+
+        function hideModal() {
+            document.getElementById('modal-container').innerHTML = '';
+        }
+
+        function showLocationsModalFunc() {
+            const content = importantLocations.length > 0 ?
+                `<ul class="list-disc list-inside">${importantLocations.map(loc => `<li>${loc}</li>`).join('')}</ul>` :
+                `<p>No important ports or islands recorded yet, Captain.</p>`;
+            renderModal('Discovered Ports & Haunts', content, () => { showLocationsModal = false; hideModal(); }, 'emerald-600', 'emerald-400');
+            showLocationsModal = true;
+        }
+
+        function showPeopleModalFunc() {
+            const content = importantPeople.length > 0 ?
+                `<ul class="list-disc list-inside">${importantPeople.map(person => `<li>${person}</li>`).join('')}</ul>` :
+                `<p>No notable crew or figures encountered yet, Captain.</p>`;
+            renderModal('Notable Crew & Figures', content, () => { showPeopleModal = false; hideModal(); }, 'emerald-600', 'emerald-400');
+            showPeopleModal = true;
+        }
+
+        function showCommandsModalFunc() {
+            const commands = [
+                { cmd: '!SCRAP', desc: 'Scuttles your current adventure and begins anew.' },
+                { cmd: '!PORTS', desc: 'Displays a list of all important ports and islands discovered so far.' },
+                { cmd: '!CREW', desc: 'Displays a list of all important people encountered so far.' },
+                { cmd: '!HAUNTZ', desc: 'Displays information about the infamous locations of the Azure Archipelago.' },
+                { cmd: '!LEGENDS', desc: 'Displays a comprehensive guide to the world of Deadly Sails.' },
+                { cmd: '!SCROLL', desc: 'Copies your entire journey log to your clipboard.' },
+                { cmd: '!SHOUTHELP', desc: 'Provides guidance on enabling microphone access for voice input.' },
+                { cmd: '!ORDERS', desc: 'Shows this list of available commands, Captain.' },
+                { cmd: '!SAVE', desc: 'Saves your current voyage to local storage.' }, // New command
+            ];
+            const content = `<ul class="list-none text-gray-300 space-y-3">
+                ${commands.map(cmd => `
+                    <li>
+                        <span class="font-bold text-lg text-gold-300 block">${cmd.cmd}</span>
+                        <span class="text-sm italic text-gray-400">${cmd.desc}</span>
+                    </li>
+                `).join('')}
+            </ul>`;
+            renderModal('Available Commands, Matey!', content, () => { showCommandsModal = false; hideModal(); }, 'teal-600', 'teal-400');
+            showCommandsModal = true;
+        }
+
+        function showDistrictsModalFunc() { // Renamed from showDistrictsModalFunc to match new theme, but kept the original internal name for less refactoring.
+            const haunts = [
+                { name: 'Port Royale (Colonial Capital)', vibe: 'Opulent, heavily guarded, mercantile.', features: 'The grandest colonial port, bustling with merchant ships and Royal Armada patrols. Features lavish governor\'s mansions, bustling trading posts, well-stocked armories, and a formidable fortress. Access is tightly controlled, especially for pirates.' },
+                { name: 'The Kraken\'s Maw (Legendary Pirate Haven)', vibe: 'Dangerous, lawless, hidden, fiercely independent.', features: 'A labyrinthine network of hidden coves and treacherous reefs, home to the most notorious pirate captains and their crews. Features makeshift docks, raucous taverns, shadowy black markets, and a fierce resistance to outside interference.' },
+                { name: 'The Black Market Cove (Smuggler\'s Paradise)', vibe: 'Chaotic, sensory overload, illicit.', features: 'A vibrant, chaotic, and densely packed commercial hub. Anything can be bought or sold, legally or illegally. A maze of glowing stalls, bustling crowds, hidden back alleys, black markets, tech repair shops, street food, entertainment arcades, and underground fighting rings.' },
+                { name: 'Shipwright\'s Bay (Major Shipyard & Docks)', vibe: 'Industrial, bustling, loud, essential.', features: 'A colossal, multi-tiered stadium for hyper-sensory concerts, brutal combat sports, and massive holographic spectacles. A central hub for entertainment with adaptable architecture, retractable roof, combat rings, and luxury skyboxes.' },
+                { name: 'Smuggler\'s Run (Treacherous Strait)', vibe: 'Gritty, hardworking, polluted, overlooked.', features: 'A sprawling, mid-level sector with endless traffic jams on multi-layered skyways. Features apartment blocks stacked upon ancient factories, a dense working-class population, repurposed industrial zones, struggling clinics, and local watering holes.' },
+                { name: 'Freeport (Neutral Trading Hub)', vibe: 'Bustling, transient, imposing, heavily secured.', features: 'The city\'s massive international and interstellar transport hub. A marvel of advanced engineering with automated cargo loaders, sleek passenger shuttles, inter-system freighters, vast landing pads, custom inspection checkpoints, and orbital launch bays.' },
+                { name: 'Dead Man\'s Shoals (Perilous Graveyard of Ships)', vibe: 'Grimy, desperate, resilient, opportunistic.', features: 'A sprawling, densely packed slums district at the fringes of the Gridlock, bordering the toxic Undercity. Characterized by ramshackle dwellings, makeshift markets, labyrinthine alleys, perpetual smog, black market operations (SkrapTek workshops), and hidden info-broker dens.' },
+                { name: 'The Sunken City of Eldoria (Forgotten Depths)', vibe: 'Oppressive, dangerous, mysterious, survivalist.', features: 'The true bottom of Skylight City, built upon the ruins of older civilizations. Dark, damp, and often hazardous, home to the desperate, mutated creatures, and forgotten secrets. Features ancient sewers, abandoned research labs, hidden cults, scavenger camps, and toxic waste zones.' },
+            ];
+            const content = `<div class="space-y-6">
+                ${haunts.map(d => `
+                    <div class="p-4 bg-gray-800/50 rounded-md border border-gray-700">
+                        <p class="font-bold text-lg text-white mb-1">${d.name}</p>
+                        <p class="italic text-gray-400 mb-2">Vibe: ${d.vibe}</p>
+                        <p class="text-gray-300">${d.features}</p>
+                    </div>
+                `).join('')}
+            </div>`;
+            renderModal('Azure Archipelago Haunts', content, () => { showDistrictsModal = false; hideModal(); }, 'brown-600', 'orange-400');
+            showDistrictsModal = true;
+        }
+
+        function showLoreModalFunc() {
+            const loreData = [
+                { category: "I. The Azure Archipelago: The World", sections: [{ title: "Atmosphere & Core Themes", content: ["**The Azure Archipelago** is a vast, untamed expanse of ocean dotted with countless islands, from lush, volcanic peaks to desolate, sun-scorched atolls. It's an era where grand colonial empires clash with the fierce independence of pirate havens, where ancient sea legends mingle with the rattle of cutlasses and roar of cannons.", "**Boundless Horizon:** Life is defined by the sea. Journeys are long, discoveries are frequent, and danger lurks beneath every wave and behind every distant island.", "**Clash of Ideals:** The strict, mercantile order of the colonial powers (East India Company, Royal Armada) constantly battles the chaotic freedom and ruthless ambition of the pirate factions. Who will truly rule the waves?", "**Rumors & Riches:** Information is traded as eagerly as gold. Ancient maps, whispered legends, and fleeting sightings of mythical beasts drive many to risk life and limb.", "**Mysteries of the Deep:** The oceans hold secrets from forgotten civilizations, colossal sea beasts, and arcane energies that few understand but all respect."] }] },
+                { category: "II. Geography & Key Locations", sections: [{ title: "Port Royale (Colonial Capital)", content: ["**Vibe:** Opulent, heavily guarded, mercantile.", "**Features:** The grandest colonial port, bustling with merchant ships and Royal Armada patrols. Features lavish governor\'s mansions, bustling trading posts, well-stocked armories, and a formidable fortress. Access is tightly controlled, especially for pirates."] }, { title: "The Kraken's Maw (Legendary Pirate Haven)", content: ["**Vibe:** Dangerous, lawless, hidden, fiercely independent.", "**Features:** A labyrinthine network of hidden coves and treacherous reefs, home to the most notorious pirate captains and their crews. Features makeshift docks, raucous taverns, shadowy black markets, and a fierce resistance to outside interference."] }, { title: "The Black Market Cove (Smuggler\'s Paradise)", content: ["**Vibe:** Bustling, sensory overload, illicit.", "**Features:** A vibrant, chaotic, and densely packed commercial hub. Anything can be bought or sold, legally or illegally. A maze of glowing stalls, bustling crowds, hidden back alleys, black markets, tech repair shops, street food, entertainment arcades, and underground fighting rings."] }, { title: "Shipwright\'s Bay (Major Shipyard & Docks)", content: ["**Vibe:** Industrial, bustling, loud, essential.", "**Features:** A colossal, multi-tiered stadium for hyper-sensory concerts, brutal combat sports, and massive holographic spectacles. A central hub for entertainment with adaptable architecture, retractable roof, combat rings, and luxury skyboxes."] }, { title: "Smuggler\'s Run (Treacherous Strait)", content: ["**Vibe:** Gritty, hardworking, polluted, overlooked.", "**Features:** A sprawling, mid-level sector with endless traffic jams on multi-layered skyways. Features apartment blocks stacked upon ancient factories, a dense working-class population, repurposed industrial zones, struggling clinics, and local watering holes."] }, { title: "Freeport (Neutral Trading Hub)", content: ["**Vibe:** Bustling, transient, imposing, heavily secured.", "**Features:** The city\'s massive international and interstellar transport hub. A marvel of advanced engineering with automated cargo loaders, sleek passenger shuttles, inter-system freighters, vast landing pads, custom inspection checkpoints, and orbital launch bays."] }, { title: "Dead Man\'s Shoals (Perilous Graveyard of Ships)", content: ["**Vibe:** Grimy, desperate, resilient, opportunistic.", "**Features:** A sprawling, densely packed slums district at the fringes of the Gridlock, bordering the toxic Undercity. Characterized by ramshackle dwellings, makeshift markets, labyrinthine alleys, perpetual smog, black market operations (SkrapTek workshops), and hidden info-broker dens."] }, { title: "The Sunken City of Eldoria (Forgotten Depths)", content: ["**Vibe:** Oppressive, dangerous, mysterious, survivalist.", "**Features:** The true bottom of Skylight City, built upon the ruins of older civilizations. Dark, damp, and often hazardous, home to the desperate, mutated creatures, and forgotten secrets. Features ancient sewers, abandoned research labs, hidden cults, scavenger camps, and toxic waste zones."] }, { title: "Mariner\'s Port (Busy Commercial Hub)", content: ["**Vibe:** Industrial, bustling, grimy, authentic.", "**Features:** The main port for cargo shipping and receiving across the Archipelago. Dominated by massive cargo warehouses, towering crate stacks, and automated loading cranes. A place of constant activity, with ships arriving from across the globe. Often a hotspot for smuggling and illicit cargo transfers."] }, { title: "Serpent\'s Isle (Northern Jungles)", content: ['**Vibe:** Serene, wild, potentially perilous.', '**Features:** A vast expanse of dense, untamed jungle on the northern fringes of the Archipelago. While parts are home to isolated fishing villages, deeper sections are wild and untamed, home to unique flora and fauna, and rumored hidden temples or ancient curses. Offers a stark contrast to the open sea.'] }, { title: "The Tangle (Mangrove Swamps)", content: ['**Vibe:** Murky, labyrinthine, cunning, secretive.', '**Features:** An extensive network of dense mangrove swamps, tidal flats, and hidden waterways. A vital transportation network for smugglers and those wishing to avoid the main sea lanes. Its winding passages and hidden inlets are often home to reclusive hermits, rogue pirates, or forgotten secrets. Shallows make it impassable for large ships.'] }, { title: "The Cursed Quarry (Abandoned Mining Isle)", content: ['**Vibe:** Desolate, dangerous, filled with echoes of hardship.', '**Features:** An abandoned and highly dangerous quarry located on a small, barren island. Shut down decades ago due to collapses and the discovery of unstable subterranean gases. Now, only desperate scavengers or those seeking to hide something dare to venture into its treacherous, echoing shafts. Rumored to contain valuable untouched minerals or dark secrets.'] }, { title: "Siren\'s Sound (Enchanting Reefs)", content: ['**Vibe:** Beautiful, alluring, subtly unsettling, treacherous.', '**Features:** A stunning, perpetually vibrant coral reef system and chain of small, idyllic islands. Known for its dazzling marine life and crystal-clear waters, but also for treacherous currents, hidden shoals, and legends of siren songs that lure ships to their doom. Beneath its cheerful facade, dangerous sea creatures and ancient spirits are rumored to reside.'] }] },
+                { category: "III. Power Structures: Factions & Leadership", sections: [{ title: "Major Factions & Organizations", content: ["**The East India Company (Colonial Overlords):** The dominant mercantile and naval power, controlling most of the Archipelago's trade routes and fortified ports. They value order, profit, and expansion above all else. **Goals:** Maintain control, expand influence, suppress piracy, develop lucrative new trade routes. **Methods:** Naval blockades, privateers, political manipulation.", "**The Royal Armada (Imperial Military Might):** The disciplined naval force of the colonial powers, dedicated to eradicating piracy and protecting trade. Their ships are the most advanced and their training rigorous. **Goals:** Secure sea lanes, crush pirate activity, enforce colonial law. **Methods:** Naval battles, island raids, intelligence gathering.", "**The Brethren of the Coast (Pirate Collective):** A loose, decentralized alliance of independent pirate captains who often put aside their rivalries for common cause against the empires. They value freedom and fortune. **Goals:** Plunder riches, protect their havens, defy colonial rule, seek legendary treasures. **Methods:** Raiding, boarding, strategic alliances, information networks.", "**The Crimson Corsairs (Ruthless Syndicate):** A powerful and brutal pirate organization, more interested in sheer power and personal gain than any code. They dabble in slavery, large-scale smuggling, and protection rackets. **Goals:** Accumulate vast wealth, maintain absolute power, eliminate competition. **Methods:** Intimidation, brute force, cunning negotiations, betrayal.", "**The Sea Folk (Ancient Islanders):** A reclusive, tribal people native to the more remote islands, possessing a deep connection to the ocean and its ancient magic. They fight to protect their ancestral lands and way of life from outsiders. **Goals:** Preserve their culture, defend their territory, maintain balance with the sea. **Methods:** Guerilla warfare, ancient rituals, knowledge of hidden passages and sea lore.", "**The Mystics of the Maelstrom (Arcane Order):** A covert group of individuals who who study and manipulate the arcane energies of the sea. They seek forgotten knowledge and power, often operating from secluded temples or treacherous whirlpools. **Goals:** Uncover ancient secrets, harness elemental power, influence the tides of fate. **Methods:** Arcane rituals, ancient texts, subtle manipulation, prophecies.", "**The Leviathan (Mythical Sea Entity):** A truly unique and formidable entity, rumored to be an ancient, colossal sea creature or perhaps a sentient force of the ocean itself. It is said to influence currents, stir storms, and guard unimaginable treasures or primordial secrets. **Nature:** Enigmatic, ancient, immense power, beyond human comprehension. It operates with an almost detached, primal efficiency. **Operating Principle:** The Leviathan generally adheres to a strict policy of non-intervention in human affairs unless directly provoked or if the balance of the ocean is severely threatened. It values the natural order of the deep above all else. **Vast Influence:** Its existence is a terrifying secret among the most seasoned sailors and mystics, who often find themselves caught in its wake or indirectly benefiting from its silent power. It represents the ultimate wild card of the deep."] }] },
+                { category: "III. Power Structures: Factions & Leadership", sections: [{ title: "Leaders of Power & Influence", content: ["**Colonial & Naval Leaders:**", " - **Governor Elias Sterling (Head of Port Royale):** A shrewd, pragmatic politician navigating colonial demands and the constant threat of piracy. Projects stability. **Personality:** Diplomatic, calculating, image-conscious, with a hidden iron will.", " - **Admiral Thorne (Commander of the Royal Armada):** A ruthless naval titan, obsessed with eradicating piracy. **Personality:** Disciplined, ambitious, charismatic, with a cold, strategic mind. **Agenda:** Expanding naval reach, securing trade routes, eliminating pirate havens.", "**Pirate & Islander Leaders:**", " - **Captain \'Blackheart\' Silas (Leader of The Brethren of the Coast):** A legendary pirate captain known for his cunning tactics and surprising sense of honor. **Personality:** Enigmatic, pragmatic, fiercely territorial, with a surprising sense of justice. **Agenda:** Maintaining pirate freedom, expanding influence, seeking legendary treasures.", " - **\'Bloody\' Maeve (Leader of The Crimson Corsairs):** A fierce and notoriously cruel pirate queen who built a fearsome reputation through intimidation. **Personality:** Brutal, unpredictable, fiercely independent, with a thirst for power. **Agenda:** Expanding the Corsairs\' terror, accumulating wealth, crushing rivals.", " - **Elder Kael (Chieftain of the Sea Folk):** The wise and ancient leader of one of the largest Sea Folk tribes. **Personality:** Stoic, deeply spiritual, pragmatic, and fiercely protective of his people. **Agenda:** Preserving Sea Folk traditions, defending their lands, maintaining peace with the ocean."] }] },
+                { category: "IV. Commerce & Combat: Gear & Supplies", sections: [{ title: "Shipwrights & Arms Dealers", content: ["**Ironhide Forges:** Renowned for their heavy-duty naval cannons, reinforced ship plating, and powerful, albeit cumbersome, heavy pistols. **Reputation:** Durability, Devastation, Reliability. **Typical Clientele:** Royal Armada, large merchant fleets, well-funded pirate captains.", "**Buccaneer Blades:** Specialists in close-quarters combat gear. Their cutlasses are famed for their balance, their boarding axes for their bite, and their flintlock pistols for their quick draw. **Reputation:** Sharp, Swift, Dependable. **Typical Clientele:** Marines, Swashbucklers, any experienced seafarer.", "**Mystic Carvings:** A reclusive group dealing in rare, often enchanted items. Their voodoo trinkets, protective amulets, and minor curse effigies fetch high prices. **Reputation:** Mysterious, Potent, Unpredictable. **Typical Clientele:** Mystics, desperate sailors, those seeking an arcane edge.", "**Scavenger\'s Scraps:** A collective of opportunistic dealers operating from hidden coves, peddling \'junk weapons\' and makeshift repairs assembled from salvaged wrecks. Notoriously unreliable, but dirt cheap. **Reputation:** Cheap, Risky, Desperate. **Typical Clientele:** Undermanned crews, desperate freelancers, street thugs.", "**Silken Cutlery:** Specializing exclusively in exquisitely crafted, often poisoned daggers and throwing knives. Their blades are almost invisible until it\'s too late. **Reputation:** Precision, Lethality, Elegance. **Typical Clientele:** Assassins, spies, discreet swashbucklers, wealthy collectors."] }, { title: "Ship Types & Builders", content: ["**Gale Runners (Swift & Nimble):** Built for speed and maneuverability, these sloops and brigantines are ideal for outrunning larger ships or chasing down smaller targets. **Top Models:** *The Zephyr, Swiftwind, Horizon Chaser*. **Reputation:** Speed, Agility, Pursuit.", "**Steady Barges (Cargo & Commerce):** Sturdy merchant cogs and cargo galleons designed for maximum hauling capacity. Slow but reliable for transport and trade. **Main Models:** *The Gold Standard, Merchant\'s Delight, Trade Wind*. **Reputation:** Economical, Practical, Utilitarian.", "**War Galleons (Power & Fortitude):** Heavily armed frigates and towering man-o-wars, built for naval combat and withstand heavy bombardment. Slow but devastating in a fight. **Main Models:** *The Leviathan Hunter, Ironclad, Sovereign*. **Reputation:** Robust, Powerful, Battlefield Dominance."] }, { title: "Navigation & Treasure Hunting: The Chart-Compass", content: ["In the Azure Archipelago, accurate charts and ancient lore are paramount. Navigation is often guided by intricate **Chart-Compasses**.", "**Chart-Compasses: The Navigator\'s Lifeline:** Ornate, brass-bound compasses often integrated with spyglasses or even small, intricate map compartments. While common for basic navigation, a skilled cartographer can attune them to ancient ley lines or hidden magical currents, making them powerful tools for discovery. Illegal modifications can lead to uncovering forbidden knowledge.", "**Chart-Compass Tiers & Crafters:**", " - **Celestial Navigator (High-End):** Pinnacle of craftsmanship, advanced astrolabes, superior star charts, precision readings. Ideal for long-range voyages or intricate coastal mapping. **Notable Models:** *The Star-Seeker, Triton\'s Eye, True North*.", " - **Mariner\'s Eye (Mid-Range):** Robust and versatile, balance of accuracy and affordability. Favored by independent captains. Common base for aspiring treasure hunters. **Notable Models:** *The Deep Caller, Tide Turner, Horizon Gazer*.", " - **Drifter\'s Glass (Low-End):** Mass-produced, crudely made, ubiquitous in lower ports. Cheap, but limited accuracy and basic features. First choice for greenhorns or desperate souls. **Notable Models:** *The Wandering Needle, Fog Dancer, Lost Lens*.", "**Navigational Lore (The True Power):** Specialized knowledge, cryptic riddles, or ancient symbols inscribed onto chart pieces or learned through experience. Used to interpret currents, predict storms, or unlock hidden paths to legendary treasure. **Examples:** Dead Man\'s Charts (treacherous routes), Siren\'s Song Cipher (decoding sea creature behavior), Kraken\'s Coil (understanding maelstroms), Ghost Ship Log (locating phantom vessels)."] }, { title: "Sailor\'s Brews & Potions", content: ["The taverns and hidden coves of the Archipelago are awash with various illicit substances and potent concoctions, each offering temporary escape, enhanced perception, or a dangerous edge.", "**Sea Salt Dust:** Crystalline powder, snorted or chewed. **Effects:** Intense euphoria, heightened senses, increased daring, mild hallucinations of merfolk or sea spirits. **Long-Term:** Severe addiction, paranoia, neurological damage, eventual madness. **Cost:** 50-100 Gold.", "**Kraken\'s Kiss:** Potent synthetic stimulant, a few drops on the tongue. **Effects:** Extreme focus, increased reaction time/strength, reduced fatigue, temporary immunity to sea sickness. **Long-Term:** Cardiovascular strain, debilitating crashes, muscle deterioration, uncontrollable tremors. **Cost:** 150-300 Gold.", "**Deep Sleep Draught:** Translucent liquid/gel for immersive dreams. **Effects:** Deep relaxation, vivid lucid dreams, temporary enhancement of memory or intuition (often leading to prophetic dreams). **Long-Term:** Disorientation upon waking, psychological dependence, chronic insomnia if deprived. **Cost:** 80-180 Gold.", "**Ironblood Potion:** Thick, metallic-tasting liquid, consumed. **Effects:** Temporary skin hardening, increased aggression, feeling of invincibility, dulling of pain. **Long-Term:** Organ failure, skin discoloration, extreme fits of rage. **Cost:** 120-250 Gold."]} ] },
+                { category: "V. Order & Enhancement: Society\'s Backbone", sections: [{ title: "Naval Patrols & Elite Units", content: ["**Naval Sentinels (Royal Armada Patrols):** Primary law enforcement on the seas. Comprised of disciplined sailors and sturdy frigates, built for precision patrolling and upholding colonial law. **Doctrine:** Strict enforcement, tactical maneuvers. **Challenges:** Lack of flexibility can be exploited by cunning pirates. **Key Figure:** **Captain-Commander Sterling (The Overseer):** A stoic, by-the-book naval officer, relentless in his pursuit of justice and order.", "**Kraken Hunters (Elite Marine Units):** Specialized combat units consisting of hardened marines and heavily armed sloops, designed to hunt down the largest, most dangerous sea beasts and notorious pirate lords. **Composition:** Elite naval volunteers, often equipped with harpoons and explosive charges. **Doctrine:** Adaptable combat, decisive action, powerful presence. **Challenges:** High risk of casualties, mental strain from facing monstrous threats."] }, { title: "Ancient Artifacts & Mystic Charms: The Cost of Power", content: ["The Azure Archipelago holds many ancient relics and mystic charms, offering incredible boons, but extensive use or possession comes with a hidden cost: the erosion of one\'s **Spirit Purity** or **Soul Integrity**.", "**Spirit Purity / Soul Integrity (SP):** Starts at 100%, decreases with each corrupted or powerful artifact. **Consequences of Low SP:** Psychological strain (paranoia, nightmares, uncontrollable impulses), social alienation, physical manifestations (pale skin, glazed eyes, a haunted demeanor). **Critical Threshold:** Permanent psychological damage (\'sea-crazed\') or succumbing to the artifact\'s curse.", "**Available Enhancements & Costs:**", " - **Eye of the Storm Amulet (Vision):** **Benefit:** Enhanced vision (night vision, ability to see through fog or storms), integrated foresight (minor glimpses of future weather), data overlay for star charts. **SP Cost:** Low (1-5 SP). **Cost:** 1,000-10,000 Gold. **Examples:** *Gale-Eye Charm, Mariner\'s Sight*.", " - **Barnacle Skin Charm (Resilience):** **Benefit:** Increased physical resistance to damage, minor regeneration, improved buoyancy. **SP Cost:** Moderate (5-15 SP). **Cost:** 5,000-25,000 Gold. **Examples:** *Ironhide Talisman, Deep Scale Armor*.", " - **Peg Leg of the Mariner / Hook of the Harpooner (Limb Replacements):** **Benefit:** Vastly increased Strength and Dexterity (climbing, swinging), integrated tools (harpoon launcher, grappling hook), enhanced jump/movement. **SP Cost:** High (10-30 SP, more for cursed items). **Cost:** 15,000-80,000 Gold. **Examples:** *Gilded Peg, Kraken\'s Reach*.", " - **Mind Gem of the Siren (Mental Enhancement):** **Benefit:** Direct mental interface with charts, enhanced Intelligence, accelerated thought, advanced map interpretation. **SP Cost:** Very High (20-50 SP). **Cost:** 20,000-150,000+ Gold. **Examples:** *Whispering Pearl, Oracle\'s Fragment*.", " - **Heart of the Leviathan (Vitality/Regen):** **Benefit:** Enhanced Stamina, rapid healing, toxin resistance (especially to sea poisons). **SP Cost:** Moderate to High (10-25 SP). **Cost:** 10,000-60,000 Gold. **Examples:** *Ocean\'s Core, Brine Heart*."] }] },
+                { category: "VI. Society & Culture: Notables", sections: [{ title: "Celebrities of the Sea", content: ["**Storytellers/Bards:**", " - **Silas \'Bard of the Waves\' Blackwood (Wandering Storyteller):** Known for his captivating tales of sea monsters, lost treasures, and epic battles. A master of whispers and collector of forgotten lore, with rumored ties to the Brethren. **Persona:** Enigmatic, charismatic, subtly rebellious.", "**Shantey Masters/Musicians:**", " - **\'Dread\' Annie O\'Malley (Shantey Master):** From the rowdy taverns of the Kraken\'s Maw, her powerful voice and haunting melodies echo the struggle and freedom of pirate life. Her sea shanties are legendary across the pirate havens. **Persona:** Fiercely independent, voice of the disenfranchised, electrifying.", "**Colonial Figures of Note:**", " - **Chancellor Kaito Ishikawa (Port Royale Governor\'s Advisor):** Shrewd, pragmatic politician navigating colonial demands and public needs. Projects stability. **Persona:** Diplomatic, calculating, image-conscious, deeply loyal to the Company.", "**Fighters of Renown:**", " - **Zenith \'Ironhide\' Thorne (Arena Champion):** A legendary brawler in the illegal fighting pits of the Black Market Cove. Her raw strength and resilience make her a fan favorite, especially among the tougher crowds. **Persona:** Stoic, powerful, uncompromising."] }] },
+                { category: "VII. Current Plot Hooks & Story Themes", sections: [{ title: "Potential Adventures in the Azure Archipelago", content: ["**The Stolen Manifest:** A critical cargo manifest missing from an East India Company warehouse. Is it a rival company\'s work, pirate plunder, or something more sinister from the depths?", "**The Curse of the Black Reef:** A strange blight spreading through the Dead Man\'s Shoals, affecting marine life and even rotting ships from the inside out. Find a cure before it reaches the major shipping lanes.", "**The Merfolk Enigma:** Rumors of a newly discovered \'race\' of merfolk or an ancient sea-dwelling civilization. Factions will have strong opinions on their fate—to exploit, protect, or eradicate them.", "**The Pirate Congress:** Tensions between the Brethren of the Coast and the Crimson Corsairs are high, threatening an all-out pirate war. Navigate the treacherous waters of alliances and betrayals to prevent or ignite the conflict.", "**The Lost Ballad of Captain Grim:** A major sea shantey master vanishes or gets embroiled in scandal. Investigate, protect, or exploit the situation, as their songs hold secrets beyond mere melody.", "**The Awakening Leviathan:** The mythical Leviathan initiates a subtle shift in ocean currents or stirs ancient storms, disrupting trade routes and power balances. Be caught in the fallout, hired to uncover its true nature, or become its next target."] }] }
+            ];
+
+            let contentHTML = '<div class="space-y-8">';
+            loreData.forEach(categoryData => {
+                contentHTML += `<div>
+                    <h4 class="text-2xl font-cinzel text-yellow-400 mb-3 border-b border-gray-800 pb-1">${categoryData.category}</h4>
+                    <div class="space-y-4">`;
+                categoryData.sections.forEach(section => {
+                    contentHTML += `<div class="p-3 bg-gray-800/50 rounded-md border border-gray-700">
+                        <p class="font-bold text-lg text-white mb-2">${section.title}</p>`;
+                    section.content.forEach(paragraph => {
+                        // Replace markdown bolding with HTML strong tags for modal display
+                        const formattedParagraph = paragraph.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                        contentHTML += `<p class="text-gray-300 text-sm mb-1">${formattedParagraph}</p>`;
+                    });
+                    contentHTML += `</div>`;
+                });
+                contentHTML += `</div></div>`;
+            });
+            contentHTML += `</div>`;
+
+            renderModal('DEADLY SAILS: Legends & Lore', contentHTML, () => { showLoreModal = false; hideModal(); }, 'gold-600', 'gold-400');
+            showLoreModal = true;
+        }
+
+        function showMicrophoneHelpModalFunc() {
+            const content = `<div class="text-gray-300 text-sm space-y-4">
+                <p>If yer voice ain't carryin', ensure yer browser has permission to access yer microphone, savvy?</p>
+                <p class="font-bold text-lg text-blue-300">Common Browser Settings:</p>
+                <div>
+                    <p class="font-semibold text-white">Google Chrome:</p>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>Click the <b>lock icon</b> or <b>microphone icon</b> in the left side of the address bar.</li>
+                        <li>Find "Microphone" and select "Allow" or "Always allow on this site."</li>
+                        <li>Ye may need to reload the page.</li>
+                    </ul>
+                </div>
+                <div>
+                    <p class="font-semibold text-white">Mozilla Firefox:</p>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>Click the <b>microphone icon</b> or <b>camera icon</b> in the left side of the address bar.</li>
+                        <li>Select "Allow" or "Always Allow Access."</li>
+                        <li>Ye may need to reload the page.</li>
+                    </ul>
+                </div>
+                <div>
+                    <p class="font-semibold text-white">Microsoft Edge:</p>
+                    <ul class="list-disc list-inside ml-4">
+                        <li>Click the <b>lock icon</b> or <b>microphone icon</b> in the left side of the address bar.</li>
+                        <li>Under "Microphone," select "Allow" or "Ask (recommended)."</li>
+                        <li>Ye may need to reload the page.</li>
+                    </ul>
+                </div>
+                <p class="text-red-300 italic">If these steps don't work, check yer operating system's privacy settings for microphone access and ensure yer browser is listed and allowed, arrr!</p>
+            </div>`;
+            renderModal('Microphone Access Help', content, () => { showMicrophoneHelpModal = false; hideModal(); }, 'gold-600', 'gold-400');
+            showMicrophoneHelpModal = true;
+        }
+
+
+        // --- Character Creator Screen ---
+
+        function renderCharacterCreator() {
+            const gameContent = document.getElementById('game-content');
+            gameContent.innerHTML = `
+                <div class="w-full max-w-4xl bg-gray-800/70 backdrop-blur-sm p-8 rounded-xl shadow-aged border-2 border-amber-600 animate-fade-in text-center">
+                    <h2 class="text-3xl font-cinzel text-yellow-400 mb-6">Forge Your Legend</h2>
+
+                    <div id="creator-message" class="hidden bg-blue-900/50 text-blue-200 border border-blue-700 p-3 rounded-md mb-4 text-sm"></div>
+
+                    <!-- Load Game Section -->
+                    <div class="mb-8 p-4 bg-gray-900/50 rounded-lg border border-gray-700">
+                        <h3 class="text-2xl text-yellow-400 mb-4">Load a Saved Voyage:</h3>
+                        <div class="flex flex-col md:flex-row gap-4 items-center justify-center">
+                            <select id="save-game-dropdown"
+                                class="flex-1 p-3 rounded-lg bg-gray-700 text-white border border-amber-600 focus:outline-none focus:ring-2 focus:ring-gold-500">
+                                <!-- Options populated by JavaScript -->
+                            </select>
+                            <button id="load-game-button"
+                                class="px-6 py-3 bg-gradient-to-r from-blue-700 to-indigo-700 text-white font-bold rounded-lg shadow-md hover:from-blue-800 hover:to-indigo-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Load Voyage
+                            </button>
+                            <button id="delete-game-button"
+                                class="px-6 py-3 bg-gradient-to-r from-red-700 to-orange-700 text-white font-bold rounded-lg shadow-md hover:from-red-800 hover:to-orange-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Scuttle Voyage
+                            </button>
+                        </div>
+                    </div>
+
+
+                    <!-- Character Name Input -->
+                    <div class="mb-8">
+                        <h3 class="text-2xl text-amber-400 mb-4">What name will they fear on the seas?</h3>
+                        <input type="text" id="character-name-input"
+                            class="w-full p-3 rounded-lg bg-gray-900 text-white border border-amber-600 focus:outline-none focus:ring-2 focus:ring-gold-500 placeholder-gray-400"
+                            placeholder="Enter your pirate's name..." maxlength="25">
+                    </div>
+
+                    <!-- Gender Selection -->
+                    <div class="mb-8">
+                        <h3 class="2xl text-amber-400 mb-4">Are ye a lass or a lad, or somethin' in between?</h3>
+                        <div class="flex justify-center gap-4">
+                            <label class="inline-flex items-center"><input type="radio" class="form-radio text-red-600 h-5 w-5" name="gender" value="Male"> <span class="ml-2 text-white">Lad</span></label>
+                            <label class="inline-flex items-center"><input type="radio" class="form-radio text-red-600 h-5 w-5" name="gender" value="Female"> <span class="ml-2 text-white">Lass</span></label>
+                            <label class="inline-flex items-center"><input type="radio" class="form-radio text-red-600 h-5 w-5" name="gender" value="Other"> <span class="ml-2 text-white">Other</span></label>
+                        </div>
+                    </div>
+
+                    <!-- Race Selection (Only Human available) -->
+                    <div class="mb-8">
+                        <h3 class="2xl text-amber-400 mb-4">Choose Yer Heritage:</h3>
+                        <div id="race-selection" class="grid grid-cols-1 md:grid-cols-1 gap-4">
+                            <!-- Race buttons will be injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Class Selection -->
+                    <div class="mb-8">
+                        <h3 class="2xl text-amber-400 mb-4">Choose Yer Calling:</h3>
+                        <div id="class-selection" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <!-- Class buttons will be injected here -->
+                        </div>
+                    </div>
+
+                    <!-- Stat Rolling & Display -->
+                    <div class="mb-8">
+                        <h3 class="2xl text-amber-400 mb-4">Yer Strengths & Weaknesses:</h3>
+                        <div id="stats-display" class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                            <!-- Stats will be injected here -->
+                        </div>
+                        <button id="roll-stats-button"
+                            class="px-6 py-3 bg-gradient-to-r from-teal-600 to-blue-600 text-white font-bold rounded-lg shadow-lg hover:from-teal-700 hover:to-blue-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Roll Yer Fortune (5-14 base)
+                        </button>
+                    </div>
+
+                    <!-- Character Description Generation -->
+                    <div id="description-section" class="mb-8 hidden">
+                        <h3 class="2xl text-amber-400 mb-4">Yer Legend Unfurls:</h3>
+                        <div id="character-description-display" class="bg-gray-700/50 p-4 rounded-md border border-gray-600 text-left text-gray-300 whitespace-pre-wrap">
+                            The SailSpinner will spin a yarn about yer character based on yer choices and stats.
+                        </div>
+                        <button id="generate-description-button"
+                            class="mt-4 px-6 py-3 bg-gradient-to-r from-red-700 to-orange-700 text-white font-bold rounded-lg shadow-lg hover:from-red-800 hover:to-orange-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Unfurl Yer Legend
+                        </button>
+                    </div>
+
+                    <!-- Start Game Button -->
+                    <button id="start-game-button"
+                        class="mt-8 px-8 py-4 bg-gradient-to-r from-green-700 to-lime-700 text-white font-bold text-xl rounded-lg shadow-lg hover:from-green-800 hover:to-lime-800 transition-all duration-300 animate-pulse-once hidden">
+                        Set Sail!
+                    </button>
+                </div>
+            `;
+            setupCharacterCreatorListeners();
+            updateCreatorMessage(''); // Clear any previous messages
+            populateSaveDropdown(); // Populate dropdown when character creator loads
+        }
+
+        let characterCreatorState = {
+            name: '',
+            gender: '',
+            raceKey: 'human', // Default to human as it's the only option
+            classKey: null,
+            stats: { strength: 0, intelligence: 0, dexterity: 0, charisma: 0, luck: 0, stamina: 0 },
+            description: '',
+            isRolling: false,
+            isGeneratingDescription: false,
+        };
+
+        function updateCreatorMessage(msg, type = 'info') {
+            const msgEl = document.getElementById('creator-message');
+            if (msgEl) {
+                let bgColor, textColor, borderColor;
+                if (type === 'info') {
+                    bgColor = 'bg-blue-900/50'; textColor = 'text-blue-200'; borderColor = 'border-blue-700';
+                } else if (type === 'red') {
+                    bgColor = 'bg-red-900/50'; textColor = 'text-red-200'; borderColor = 'border-red-700';
+                } else if (type === 'yellow') {
+                    bgColor = 'bg-yellow-900/50'; textColor = 'text-yellow-200'; borderColor = 'border-yellow-700';
+                } else { // Default to info colors if type is unknown
+                    bgColor = 'bg-blue-900/50'; textColor = 'text-blue-200'; borderColor = 'border-blue-700';
+                }
+                msgEl.textContent = msg;
+                msgEl.className = `${bgColor} ${textColor} ${borderColor} p-3 rounded-md mb-4 text-sm`;
+                if (msg) msgEl.style.display = 'block';
+                else msgEl.style.display = 'none';
+            }
+        }
+
+        function renderRaceButtons() {
+            const container = document.getElementById('race-selection');
+            // Only render human, and pre-select it
+            const humanRace = races.human;
+            container.innerHTML = `
+                <button type="button" data-race-key="human" disabled
+                    class="p-4 rounded-lg border-2 border-emerald-400 bg-emerald-900/30
+                    transition-all duration-300 transform hover:scale-105 cursor-default">
+                    <span class="font-bold text-xl block text-white">${humanRace.name}</span>
+                    <span class="text-sm text-gray-400">${humanRace.description}</span>
+                </button>
+            `;
+            characterCreatorState.raceKey = 'human'; // Ensure it's set
+        }
+
+        function renderClassButtons() {
+            const container = document.getElementById('class-selection');
+            container.innerHTML = Object.entries(classes).map(([key, cls]) => `
+                <button type="button" data-class-key="${key}"
+                    class="p-4 rounded-lg border-2 ${characterCreatorState.classKey === key ? 'border-green-400 bg-green-900/30' : 'border-gray-700 bg-gray-900/50 hover:border-amber-400'}
+                    transition-all duration-300 transform hover:scale-105">
+                    <span class="font-bold text-xl block text-white">${cls.name}</span>
+                    <span class="text-sm text-gray-400">${cls.description}</span>
+                    ${Object.keys(cls.modifiers).length > 0 ? `
+                    <div class="mt-2 text-xs text-yellow-400">
+                        Modifiers: ${Object.entries(cls.modifiers).map(([stat, val]) => `
+                        <span>${val > 0 ? '+' : ''}${val} ${stat.charAt(0).toUpperCase() + stat.slice(1)} </span>
+                        `).join('')}
+                    </div>` : ''}
+                </button>
+            `).join('');
+            container.querySelectorAll('button').forEach(button => {
+                button.onclick = () => {
+                    characterCreatorState.classKey = button.dataset.classKey;
+                    renderClassButtons(); // Re-render to update selection style
+                    updateRollStatsButtonState();
+                };
+            });
+        }
+
+        function renderStatsDisplay() {
+            const container = document.getElementById('stats-display');
+            container.innerHTML = Object.entries(characterCreatorState.stats).map(([statName, value]) => `
+                <div class="bg-gray-700/50 p-3 rounded-md border border-gray-600 flex justify-between items-center">
+                    <span class="text-lg text-white font-semibold">${statName.charAt(0).toUpperCase() + statName.slice(1)}:</span>
+                    <span class="text-xl text-green-300 font-bold">${value}</span>
+                </div>
+            `).join('');
+            updateGenerateDescriptionButtonState();
+        }
+
+        function updateRollStatsButtonState() {
+            const button = document.getElementById('roll-stats-button');
+            button.disabled = !characterCreatorState.raceKey || !characterCreatorState.classKey || characterCreatorState.isRolling;
+            button.textContent = characterCreatorState.isRolling ? 'Rolling Dice...' : 'Roll Yer Fortune (5-14 base)';
+        }
+
+        function updateGenerateDescriptionButtonState() {
+            const button = document.getElementById('generate-description-button');
+            const descriptionSection = document.getElementById('description-section');
+            const startGameButton = document.getElementById('start-game-button');
+
+            const canGenerate = characterCreatorState.name.trim() &&
+                                     characterCreatorState.gender &&
+                                     characterCreatorState.raceKey &&
+                                     characterCreatorState.classKey &&
+                                     Object.values(characterCreatorState.stats).every(s => s > 0) &&
+                                     !characterCreatorState.isGeneratingDescription;
+
+            if (Object.values(characterCreatorState.stats).every(s => s > 0)) {
+                descriptionSection.style.display = 'block';
+            } else {
+                descriptionSection.style.display = 'none';
+            }
+
+            button.disabled = !canGenerate;
+            button.textContent = characterCreatorState.isGeneratingDescription ? 'Spinning Yarn...' : 'Unfurl Yer Legend';
+
+            startGameButton.style.display = characterCreatorState.description ? 'block' : 'hidden';
+        }
+
+        function setupCharacterCreatorListeners() {
+            // Initial render of dynamic elements
+            renderRaceButtons();
+            renderClassButtons();
+            renderStatsDisplay();
+            updateRollStatsButtonState();
+            updateGenerateDescriptionButtonState();
+
+            document.getElementById('character-name-input').addEventListener('input', (e) => {
+                characterCreatorState.name = e.target.value;
+                updateGenerateDescriptionButtonState();
+            });
+
+            document.querySelectorAll('input[name="gender"]').forEach(radio => {
+                radio.addEventListener('change', (e) => {
+                    characterCreatorState.gender = e.target.value;
+                    updateGenerateDescriptionButtonState();
+                });
+            });
+
+            document.getElementById('roll-stats-button').addEventListener('click', () => {
+                if (!characterCreatorState.name.trim() || !characterCreatorState.gender || !characterCreatorState.raceKey || !characterCreatorState.classKey) {
+                    updateCreatorMessage('Avast, ye! Enter a name, choose yer gender, race, and calling first!', 'red');
+                    return;
+                }
+                characterCreatorState.isRolling = true;
+                updateRollStatsButtonState();
+                updateCreatorMessage('The dice are tumbling...');
+
+                setTimeout(() => {
+                    const rolled = {
+                        strength: rollStat(),
+                        intelligence: rollStat(),
+                        dexterity: rollStat(),
+                        charisma: rollStat(),
+                        luck: rollStat(),
+                        stamina: rollStat(),
+                    };
+
+                    const raceMods = races[characterCreatorState.raceKey]?.modifiers || {};
+                    for (const stat in raceMods) {
+                        rolled[stat] = Math.min(20, Math.max(0, rolled[stat] + raceMods[stat]));
+                    }
+
+                    const classMods = classes[characterCreatorState.classKey]?.modifiers || {};
+                    for (const stat in classMods) {
+                        rolled[stat] = Math.min(20, Math.max(0, rolled[stat] + classMods[stat]));
+                    }
+
+                    characterCreatorState.stats = rolled;
+                    characterCreatorState.isRolling = false;
+                    renderStatsDisplay();
+                    updateRollStatsButtonState();
+                    updateCreatorMessage('Yer fortune is rolled! Now, let the SailSpinner spin yer legend.');
+                }, 1000);
+            });
+
+            document.getElementById('generate-description-button').addEventListener('click', async () => {
+                if (!characterCreatorState.name.trim() || !characterCreatorState.gender || !characterCreatorState.raceKey || !characterCreatorState.classKey || Object.values(characterCreatorState.stats).some(s => s === 0)) {
+                    updateCreatorMessage('Blimey! Enter a name, choose gender, race, calling, and roll yer fortune first!', 'red');
+                    return;
+                }
+
+                characterCreatorState.isGeneratingDescription = true;
+                updateGenerateDescriptionButtonState();
+                updateMessage('SailSpinner is spinning yer character\'s yarn...');
+
+                const prompt = `Generate a detailed and creative character description for a pirate RPG set in the Azure Archipelago. The character's name is ${characterCreatorState.name}, they are ${characterCreatorState.gender}, a ${races[characterCreatorState.raceKey].name} ${classes[characterCreatorState.classKey].name} with these stats: Strength ${characterCreatorState.stats.strength}, Intelligence ${characterCreatorState.stats.intelligence}, Dexterity ${characterCreatorState.stats.dexterity}, Charisma ${characterCreatorState.stats.charisma}, Luck ${characterCreatorState.stats.luck}, Stamina ${characterCreatorState.stats.stamina}. Include how their name, gender, race, calling, and stats influence their appearance, personality, and abilities in the pirate world. Highlight any unique racial benefits or class penalties based on these attributes. Make it a maximum of 2 paragraphs long, in a distinctly pirate-like narrative style.`;
+
+                try {
+                    const chatPayload = [{ role: "user", parts: [{ text: prompt }] }];
+                    const payload = {
+                        contents: chatPayload,
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    narrative: { type: "STRING" },
+                                    healthChange: { type: "NUMBER", nullable: true },
+                                    creditsChange: { type: "NUMBER", nullable: true },
+                                    xpChange: { type: "NUMBER", nullable: true },
+                                    statBonus: {
+                                        type: "OBJECT",
+                                        properties: { stat: { type: "STRING" }, amount: { type: "NUMBER" } },
+                                        nullable: true
+                                    },
+                                    notableMomentsSummary: { type: "STRING", nullable: true },
+                                    locations: { type: "ARRAY", items: { type: "STRING" } },
+                                    people: { type: "ARRAY", items: { type: "STRING" } },
+                                    events: { type: "ARRAY", items: { type: "STRING" } },
+                                },
+                                required: ["narrative", "locations", "people", "events"]
+                            }
+                        }
+                    };
+
+                    console.log("Attempting to call API at:", API_URL);
+
+                    const response = await fetch(API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    console.log("API Response Status:", response.status);
+
+                    const result = await response.json();
+
+                    console.log("Full API Response:", result);
+
+                    if (response.ok) {
+                        if (result.candidates && result.candidates.length > 0 &&
+                            result.candidates[0].content && result.candidates[0].content.parts &&
+                            result.candidates[0].content.parts.length > 0) {
+                            const jsonText = result.candidates[0].content.parts[0].text;
+                            const parsedResponse = JSON.parse(jsonText);
+
+                            characterCreatorState.description = parsedResponse.narrative || "The SailSpinner could not spin a detailed yarn based on yer input. Try adjusting yer character choices or input.";
+                            document.getElementById('character-description-display').textContent = characterCreatorState.description;
+                            updateCreatorMessage('Yer legend is unfurled!');
+                        } else {
+                            const errorMessage = 'Failed to generate description: No content or unexpected API response structure from SailSpinner. Check console for "Full API Response:".';
+                            updateCreatorMessage(errorMessage, 'red');
+                            console.error(errorMessage, result);
+                        }
+                    } else {
+                        const errorData = result.error ? result.error.message : JSON.stringify(result);
+                        const errorMessage = `Failed to generate description: API Error (${response.status} ${response.statusText}): ${errorData}. Check console for "Full API Response:".`;
+                        updateCreatorMessage(errorMessage, 'red');
+                        console.error(errorMessage, result);
+                    }
+                } catch (error) {
+                    const errorMessage = `A squall hit during yarn spinning: ${error.message}. This might be due to a cursed URL or a network kraken. Check console for details.`;
+                    updateCreatorMessage(errorMessage, 'red');
+                    console.error("Fetch error during description generation:", error);
+                } finally {
+                    characterCreatorState.isGeneratingDescription = false;
+                    updateGenerateDescriptionButtonState();
+                }
+            });
+
+            document.getElementById('start-game-button').addEventListener('click', () => {
+                if (characterCreatorState.description) {
+                    character = {
+                        name: characterCreatorState.name.trim(),
+                        gender: characterCreatorState.gender,
+                        race: characterCreatorState.raceKey,
+                        className: characterCreatorState.classKey,
+                        stats: { ...characterCreatorState.stats }, // Deep copy stats
+                        health: 100, // Starting health
+                        credits: 500, // Starting credits (now Gold)
+                        xp: 0, // Starting XP
+                    };
+                    currentScreen = 'game';
+                    renderGameScreen();
+                    // No automatic save on game start, user can save manually
+                } else {
+                    updateCreatorMessage('Ye must unfurl yer legend before setting sail!', 'red');
+                }
+            });
+
+            // Load/Delete game button listeners
+            document.getElementById('load-game-button').addEventListener('click', () => {
+                const selectedSaveId = document.getElementById('save-game-dropdown').value;
+                if (selectedSaveId) {
+                    loadGame(selectedSaveId);
+                } else {
+                    updateCreatorMessage("Choose a voyage to load, savvy?", 'yellow');
+                }
+            });
+
+            document.getElementById('delete-game-button').addEventListener('click', () => {
+                const selectedSaveId = document.getElementById('save-game-dropdown').value;
+                if (selectedSaveId) {
+                    deleteGame(selectedSaveId);
+                } else {
+                    updateCreatorMessage("Select a voyage to scuttle, Captain!", 'yellow');
+                }
+            });
+        }
+
+        // --- Game Screen ---
+
+        function renderGameScreen() {
+            const gameContent = document.getElementById('game-content');
+            gameContent.innerHTML = `
+                <div class="w-full max-w-5xl h-[80vh] flex flex-col md:flex-row bg-gray-800/70 backdrop-blur-sm rounded-xl shadow-aged border-2 border-amber-600 animate-fade-in">
+                    <!-- Character Info Sidebar -->
+                    <div class="w-full md:w-1/4 p-4 border-b-2 md:border-b-0 md:border-r-2 border-amber-600 bg-gray-900/50 flex flex-col">
+                        <h3 class="text-xl font-cinzel text-yellow-400 mb-4 border-b border-gray-700 pb-2">Yer Logbook</h3>
+                        <div id="character-profile-details" class="text-xs text-gray-300 flex-1 overflow-y-auto custom-scrollbar">
+                            <!-- Character details injected here -->
+                        </div>
+
+                        <!-- TTS Controls -->
+                        <div class="mt-4 border-t border-gray-700 pt-4">
+                            <h4 class="font-bold text-white mb-2">SailSpinner's Voice:</h4>
+                            <div class="flex items-center justify-between mb-2">
+                                <label for="tts-toggle" class="text-gray-300">Enable Voice:</label>
+                                <input type="checkbox" id="tts-toggle" class="form-checkbox h-5 w-5 text-green-500 rounded focus:ring-green-400" ${speechSynthesisEnabled ? 'checked' : ''}>
+                            </div>
+                            <div class="mb-2">
+                                <label for="tts-voice-select" class="block text-gray-300 text-sm mb-1">Voice:</label>
+                                <select id="tts-voice-select" class="w-full p-2 rounded-md bg-gray-700 text-white border border-gray-600">
+                                    <!-- Voices populated by JS -->
+                                </select>
+                            </div>
+                            <div>
+                                <label for="tts-volume-slider" class="block text-gray-300 text-sm mb-1">Volume:</label>
+                                <input type="range" id="tts-volume-slider" min="0" max="1" step="0.1" value="${speechVolume}" class="w-full h-2 rounded-lg appearance-none cursor-pointer bg-blue-700">
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- Game History and Input -->
+                    <div class="w-full md:w-3/4 flex flex-col p-4">
+                        <h3 class="text-2xl font-cinzel text-yellow-400 mb-4 text-center border-b border-gray-700 pb-2">SailSpinner's Yarn</h3>
+                        <!-- Warning message for no persistence -->
+                        <div class="bg-red-900/50 text-red-200 border border-red-700 p-2 rounded-md mb-4 text-sm text-center">
+                            <b>WARNING:</b> Unless saved, all plunder will be lost if ye close or refresh the page. Use !SAVE to preserve yer progress.
+                        </div>
+                        <div id="chat-history" class="flex-1 overflow-y-auto p-2 rounded-md bg-gray-900/50 border border-gray-700 custom-scrollbar mb-4">
+                            <!-- Game history messages injected here -->
+                        </div>
+                        <div id="game-message" class="bg-yellow-900/50 text-yellow-200 border border-yellow-700 p-2 rounded-md mb-2 text-sm text-center" style="display: none;">
+                            <!-- Dynamic messages like "listening..." or errors -->
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <input type="text" id="game-input"
+                                class="flex-1 p-3 rounded-lg bg-gray-900 text-white border border-amber-600 focus:outline-none focus:ring-2 focus:ring-gold-500 placeholder-gray-400"
+                                placeholder="Type yer orders (!ORDERS for help)...">
+                            <button id="send-input-button"
+                                class="px-6 py-3 bg-gradient-to-r from-teal-700 to-green-700 text-white font-bold rounded-lg shadow-md hover:from-teal-800 hover:to-green-800 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                                Speak
+                            </button>
+                            <button id="voice-input-button"
+                                class="px-6 py-3 font-bold rounded-lg shadow-md transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-orange-700 to-red-700 hover:from-orange-800 hover:to-red-800">
+                                Shout Orders
+                            </button>
+                            <button id="save-game-button-game-screen"
+                                class="px-6 py-3 bg-gradient-to-r from-purple-700 to-pink-700 text-white font-bold rounded-lg shadow-md hover:from-purple-800 hover:to-pink-800 transition-all duration-300">
+                                Save Game
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            setupGameScreenListeners();
+            updateCharacterProfileDisplay();
+            updateChatHistoryDisplay();
+            initSpeechSynthesis(); // Initialize TTS when game screen loads
+            // Initial greeting from SailSpinner if history is empty
+            if (gameHistory.length === 0 && character) {
+                const initialNarrative = `Ahoy, ${character.name}! Welcome to the treacherous waters of the Azure Archipelago, a vast expanse ripe for plunder and peril. Yer voyage begins now. What be yer first order, Captain?`;
+                gameHistory.push({ type: 'narrative', text: initialNarrative });
+                updateChatHistoryDisplay();
+                speakNarrative(initialNarrative); // Speak initial narrative
+            }
+        }
+
+        function updateCharacterProfileDisplay() {
+            const profileDetails = document.getElementById('character-profile-details');
+            if (character && profileDetails) {
+                profileDetails.innerHTML = `
+                    <p><span class="font-bold text-white">Name:</span> ${character.name}</p>
+                    <p><span class="font-bold text-white">Gender:</span> ${character.gender}</p>
+                    <p><span class="font-bold text-white">Heritage:</span> ${races[character.race]?.name}</p>
+                    <p><span class="font-bold text-white">Calling:</span> ${classes[character.className]?.name}</p>
+                    <div class="mt-4">
+                        <p class="font-bold text-white">Health:</p>
+                        <div class="w-full bg-red-900 rounded-full h-2.5">
+                            <div class="bg-red-500 h-2.5 rounded-full" style="width: ${character.health}%"></div>
+                        </div>
+                        <span class="text-white text-xs">${character.health}/100</span>
+                    </div>
+                    <p class="mt-2"><span class="font-bold text-white">Gold:</span> ${character.credits}</p>
+                    <p class="mt-2"><span class="font-bold text-white">Infamy:</span> ${character.xp}</p>
+                    <div class="mt-4">
+                        <p class="font-bold text-white">Stats:</p>
+                        <ul class="list-disc list-inside ml-2">
+                            ${Object.entries(character.stats).map(([statName, value]) => `
+                                <li><span class="font-semibold text-yellow-300">${statName.charAt(0).toUpperCase() + statName.slice(1)}:</span> ${value}</li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                    <div class="mt-4">
+                        <p class="font-bold text-white">Yer Tale:</p>
+                        <p class="text-xs italic text-gray-400 max-h-40 overflow-y-auto custom-scrollbar">${character.description}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function updateChatHistoryDisplay(isTyping = false) {
+            const chatHistoryElement = document.getElementById('chat-history');
+            if (chatHistoryElement) {
+                chatHistoryElement.innerHTML = gameHistory.map((entry, index) => `
+                    <div class="mb-2 p-2 rounded-md ${entry.type === 'input' ? 'bg-blue-900/30 text-blue-200 self-end ml-auto' : 'bg-green-900/30 text-green-200 self-start mr-auto'} max-w-[90%] break-words">
+                        <span class="font-bold">${entry.type === 'input' ? 'Ye: ' : 'SailSpinner: '}</span>
+                        ${entry.text}
+                    </div>
+                `).join('');
+
+                if (isTyping) {
+                    chatHistoryElement.innerHTML += `
+                        <div class="mb-2 p-2 rounded-md bg-green-900/30 text-green-200 self-start mr-auto max-w-[90%]">
+                            <span class="font-bold">SailSpinner: </span>
+                            <span class="animate-pulse">...</span>
+                        </div>
+                    `;
+                }
+                scrollToBottom();
+            }
+        }
+
+        function setGameInputDisabled(disabled) {
+            document.getElementById('game-input').disabled = disabled;
+            document.getElementById('send-input-button').disabled = disabled;
+            document.getElementById('voice-input-button').disabled = disabled;
+            // Also disable save button during AI processing
+            const saveButton = document.getElementById('save-game-button-game-screen');
+            if (saveButton) saveButton.disabled = disabled;
+
+            if (disabled) {
+                document.getElementById('send-input-button').classList.add('opacity-50', 'cursor-not-allowed');
+                document.getElementById('voice-input-button').classList.add('opacity-50', 'cursor-not-allowed');
+                if (saveButton) saveButton.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                document.getElementById('send-input-button').classList.remove('opacity-50', 'cursor-not-allowed');
+                document.getElementById('voice-input-button').classList.remove('opacity-50', 'cursor-not-allowed');
+                if (saveButton) saveButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        async function handleRestartGame() {
+            updateMessage('Scuttling current voyage... erasing all memories of plunder and peril...');
+            setGameInputDisabled(true);
+            speechSynthesis.cancel(); // Stop any ongoing speech
+
+            // Reset all local states
+            character = null;
+            gameHistory = [];
+            importantLocations = [];
+            importantPeople = [];
+            importantEvents = [];
+            currentScreen = 'characterCreator';
+            characterCreatorState = { // Reset character creator state too
+                name: '',
+                gender: '',
+                raceKey: 'human',
+                classKey: null,
+                stats: { strength: 0, intelligence: 0, dexterity: 0, charisma: 0, luck: 0, stamina: 0 },
+                description: '',
+                isRolling: false,
+                isGeneratingDescription: false,
+            };
+
+
+            setTimeout(() => {
+                renderCharacterCreator();
+                updateMessage('New voyage begins! Welcome back to the forge of legends.');
+                setGameInputDisabled(false); // Enable input for character creator
+            }, 1500);
+        }
+
+        function handleCopyLog() {
+            const logText = gameHistory.map(entry => {
+                const prefix = entry.type === 'input' ? 'Player: ' : 'SailSpinner: ';
+                return prefix + entry.text;
+            }).join('\n');
+
+            const tempTextArea = document.createElement('textarea');
+            tempTextArea.value = logText;
+            document.body.appendChild(tempTextArea);
+            tempTextArea.select();
+
+            try {
+                document.execCommand('copy');
+                updateMessage('Yer voyage log copied to clipboard!');
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                updateMessage('Failed to copy log, matey. Yer browser may not support direct clipboard access.', 'red');
+            } finally {
+                document.body.removeChild(tempTextArea);
+            }
+        }
+
+        async function sendToSailSpinner(userCommand) {
+            setGameInputDisabled(true); // Disable input while AI is typing
+            updateMessage('SailSpinner is spinning a new yarn...');
+            updateChatHistoryDisplay(true); // Show typing indicator
+            speechSynthesis.cancel(); // Stop any ongoing speech
+
+            const newHistory = [...gameHistory, { type: 'input', text: userCommand }];
+            gameHistory = newHistory; // Update global state
+            updateChatHistoryDisplay(true); // Update with user input and typing indicator
+
+            // Handle game commands
+            const lowerCaseCommand = userCommand.toLowerCase().trim();
+            if (lowerCaseCommand === '!scrap') {
+                await handleRestartGame();
+                return;
+            } else if (lowerCaseCommand === '!ports') {
+                showLocationsModalFunc();
+                updateMessage('');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false); // Hide typing indicator
+                return;
+            } else if (lowerCaseCommand === '!crew') {
+                showPeopleModalFunc();
+                updateMessage('');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            } else if (lowerCaseCommand === '!orders') {
+                showCommandsModalFunc();
+                updateMessage('');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            } else if (lowerCaseCommand === '!hauntz') {
+                showDistrictsModalFunc(); // Still internally references showDistrictsModalFunc
+                updateMessage('');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            } else if (lowerCaseCommand === '!scroll') {
+                handleCopyLog();
+                updateMessage('Yer voyage log copied to clipboard!');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            } else if (lowerCaseCommand === '!legends') {
+                showLoreModalFunc();
+                updateMessage('');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            } else if (lowerCaseCommand === '!shouthelp') {
+                showMicrophoneHelpModalFunc();
+                updateMessage('');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            } else if (lowerCaseCommand === '!save') { // Handle save command
+                saveGame();
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            } else if (lowerCaseCommand === '!load') { // Handle load command
+                currentScreen = 'characterCreator'; // Go back to character creator to show load options
+                renderCharacterCreator();
+                updateMessage('Time to set course for a past adventure, Captain!', 'info');
+                setGameInputDisabled(false);
+                return;
+            }
+
+            // If character health is 0, only allow !SCRAP command
+            if (character && character.health <= 0) {
+                updateMessage("Ye've been sent to Davy Jones' Locker. Only the '!SCRAP' command will save yer soul.", 'red');
+                setGameInputDisabled(false);
+                updateChatHistoryDisplay(false);
+                return;
+            }
+
+            // =================================================================================================================
+            // AI API call logic (active now)
+            // The API_KEY is expected to be provided by the Canvas environment or explicitly by the user for external hosting.
+            // =================================================================================================================
+
+
+            const prompt = `You are the SailSpinner, the Game Master for a grand pirate RPG set in the Azure Archipelago. The player character's name is ${character.name}, they are ${character.gender}, a ${races[character.race]?.name} ${classes[character.className]?.name} with these stats: Strength ${character.stats.strength}, Intelligence ${character.stats.intelligence}, Dexterity ${character.stats.dexterity}, Charisma ${character.stats.charisma}, Luck ${character.stats.luck}, Stamina ${character.stats.stamina}.
+            Current Health: ${character.health}, Current Gold: ${character.credits}, Current Infamy: ${character.xp}.
+            Here is the voyage log so far:
+            ${gameHistory.map(entry => `${entry.type === 'input' ? 'Ye: ' : 'SailSpinner: '}${entry.text}`).join('\n')}
+            Current important ports, islands, and secrets: ${importantLocations.join(', ') || 'None'}
+            Current notable crew and figures: ${importantPeople.join(', ') || 'None'}
+            Current significant events: ${importantEvents.join(', ') || 'None'}
+
+            The player's order is: '${userCommand}'
+
+            Based on the character's abilities, current stats, health, gold, infamy, and the voyage log, narrate the outcome and evolve the story in a distinctly pirate-themed style. Your response MUST be a JSON object with the following structure:
+            {
+            "narrative": "...", // The main story narration for the player, full of pirate flavor
+            "healthChange": "...", // OPTIONAL: Number representing change in health (e.g., -10, +5). Omit if no change.
+            "creditsChange": "...", // OPTIONAL: Number representing change in gold (e.g., +100, -50). Omit if no change.
+            "xpChange": "...", // OPTIONAL: Number representing Infamy gained (e.g., +25). Omit if no change.
+            "statBonus": { // OPTIONAL: Object if a stat increased. Omit if no stat bonus.
+                "stat": "strength|intelligence|dexterity|charisma|luck|stamina",
+                "amount": 1
+            },
+            "notableMomentsSummary": "...", // OPTIONAL: A ONE PARAGRAPH summary of notable moments if player health drops to 0. Only provide if health becomes 0.
+            "locations": ["...", "..."], // Updated list of important ports, islands, and secrets
+            "people": ["...", "..."], // Updated list of important crew and figures
+            "events": ["...", "..."] // Updated list of important events (e.g., major battles, discoveries)
+            }
+            Maintain persistence for locations, people, and events. Add new ones if they become relevant to the high seas, remove old ones if they are no longer important to the narrative. Keep the lists concise and only include truly *important* elements. Ensure the narrative is engaging and reactive to the player's choices and character's stats. If the player asks about their character, provide relevant details from their description or stats.
+            If health drops to 0 or below, the narrative should reflect yer defeat, and the 'notableMomentsSummary' should be provided.
+            `;
+
+            let deathSummary = null;
+
+            try {
+                const chatPayload = [{ role: "user", parts: [{ text: prompt }] }];
+                const payload = {
+                    contents: chatHistory,
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                narrative: { type: "STRING" },
+                                healthChange: { type: "NUMBER", nullable: true },
+                                creditsChange: { type: "NUMBER", nullable: true },
+                                xpChange: { type: "NUMBER", nullable: true },
+                                statBonus: {
+                                    type: "OBJECT",
+                                    properties: { stat: { type: "STRING" }, amount: { type: "NUMBER" } },
+                                    nullable: true
+                                },
+                                notableMomentsSummary: { type: "STRING", nullable: true },
+                                locations: { type: "ARRAY", items: { type: "STRING" } },
+                                people: { type: "ARRAY", items: { type: "STRING" } },
+                                events: { type: "ARRAY", items: { type: "STRING" } },
+                            },
+                            required: ["narrative", "locations", "people", "events"]
+                        }
+                    }
+                };
+
+                console.log("Attempting to call API at:", API_URL);
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log("API Response Status:", response.status);
+
+                const result = await response.json();
+
+                console.log("Full API Response:", result);
+
+                if (response.ok) {
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const jsonText = result.candidates[0].content.parts[0].text;
+                        const parsedResponse = JSON.parse(jsonText);
+
+                        const sailSpinnerNarrative = parsedResponse.narrative || "The SailSpinner could not spin a detailed yarn based on yer command. Try adjusting yer character choices or input.";
+                        gameHistory.push({ type: 'narrative', text: sailSpinnerNarrative });
+                        speakNarrative(sailSpinnerNarrative); // Speak the narrative
+
+                        if (parsedResponse.healthChange !== undefined) character.health = Math.max(0, character.health + parsedResponse.healthChange);
+                        if (parsedResponse.creditsChange !== undefined) character.credits = Math.max(0, character.credits + parsedResponse.creditsChange);
+                        if (parsedResponse.xpChange !== undefined) character.xp = Math.max(0, character.xp + parsedResponse.xpChange);
+
+                        if (parsedResponse.statBonus && character.stats[parsedResponse.statBonus.stat] !== undefined) {
+                            const currentStatValue = character.stats[parsedResponse.statBonus.stat];
+                            if (currentStatValue < 20) {
+                                character.stats = {
+                                    ...character.stats,
+                                    [parsedResponse.statBonus.stat]: Math.min(20, currentStatValue + parsedResponse.statBonus.amount)
+                                };
+                                updateMessage(`SailSpinner grants a +${parsedResponse.statBonus.amount} bonus to yer ${parsedResponse.statBonus.stat.charAt(0).toUpperCase() + parsedResponse.statBonus.stat.slice(1)}!`);
+                            }
+                        }
+
+                        if (character.health <= 0) {
+                            character.health = 0; // Ensure health doesn't go negative in display
+                            deathSummary = parsedResponse.notableMomentsSummary || "Yer voyage ends here. Ye fought bravely, but the sea claimed ye."; // Ensure summary exists
+                            gameHistory.push({ type: 'narrative', text: "--- VOYAGE ENDED ---" });
+                            gameHistory.push({ type: 'narrative', text: "Notable Moments: " + deathSummary });
+                            updateMessage("Game Over, matey: " + deathSummary + "\nType '!SCRAP' to begin a new adventure.", 'red');
+                            setGameInputDisabled(true); // Disable input on death
+                            speechSynthesis.cancel(); // Stop speech on game over
+                        }
+
+                        importantLocations = parsedResponse.locations || importantLocations;
+                        importantPeople = parsedResponse.people || importantPeople;
+                        importantEvents = parsedResponse.events || importantEvents;
+
+                        updateCharacterProfileDisplay();
+                        updateChatHistoryDisplay(false); // Hide typing indicator
+                        // saveGame(); // Removed: Automatic save on game over, now manual via !SAVE or from character creation
+                    } else {
+                        const errorMessage = 'Failed to generate narrative: No content or unexpected API response structure from SailSpinner. Check console for "Full API Response:".';
+                        updateMessage(errorMessage, 'red');
+                        console.error(errorMessage, result);
+                    }
+                } else {
+                    const errorData = result.error ? result.error.message : JSON.stringify(result);
+                    const errorMessage = `Failed to generate narrative: API Error (${response.status} ${response.statusText}): ${errorData}. Check console for "Full API Response:".`;
+                    updateMessage(errorMessage, 'red');
+                    console.error(errorMessage, result);
+                }
+            } catch (error) {
+                const errorMessage = `A squall hit during narrative generation: ${error.message}. This might be due to a cursed URL or a network kraken. Check console for details.`;
+                updateMessage(errorMessage, 'red');
+                console.error("Fetch error during narrative generation:", error);
+            } finally {
+                // Only clear message if it's not a Game Over message
+                if (character && character.health > 0) {
+                    updateMessage('');
+                }
+                setGameInputDisabled(false); // Re-enable input if not game over
+            }
+        }
+
+        function handleSendInput() {
+            const inputElement = document.getElementById('game-input');
+            const currentInput = inputElement.value.trim();
+            if (currentInput) {
+                sendToSailSpinner(currentInput);
+                inputElement.value = '';
+            }
+        }
+
+        function toggleVoiceInput() {
+            const voiceButton = document.getElementById('voice-input-button');
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+
+        // --- TTS Functions ---
+        function initSpeechSynthesis() {
+            if ('speechSynthesis' in window) {
+                const ttsToggle = document.getElementById('tts-toggle');
+                const voiceSelect = document.getElementById('tts-voice-select');
+                const volumeSlider = document.getElementById('tts-volume-slider');
+
+                // Set initial states from global variables (loaded from localStorage)
+                ttsToggle.checked = speechSynthesisEnabled;
+                volumeSlider.value = speechVolume;
+
+                // Populate voices when they are loaded
+                const populateVoices = () => {
+                    availableVoices = speechSynthesis.getVoices();
+                    voiceSelect.innerHTML = ''; // Clear existing options
+
+                    let preferredMaleVoice = null;
+                    let preferredFemaleVoice = null;
+
+                    // Prioritize specific high-quality English voices
+                    availableVoices.forEach(voice => {
+                        if (voice.lang.startsWith('en')) { // Only consider English voices
+                            const lowerCaseName = voice.name.toLowerCase();
+
+                            // Look for Google/Microsoft/Apple/Amazon voices
+                            if (lowerCaseName.includes('google') || lowerCaseName.includes('microsoft') || lowerCaseName.includes('apple') || lowerCaseName.includes('amazon')) {
+                                if ((lowerCaseName.includes('male') || lowerCaseName.includes('david') || lowerCaseName.includes('mark') || lowerCaseName.includes('alex')) && !preferredMaleVoice) {
+                                    preferredMaleVoice = voice;
+                                } else if ((lowerCaseName.includes('female') || lowerCaseName.includes('zira') || lowerCaseName.includes('helen')) && !preferredFemaleVoice) {
+                                    preferredFemaleVoice = voice;
+                                }
+                            }
+                        }
+                    });
+
+                    // Add female preferred voice first, then male
+                    if (preferredFemaleVoice) {
+                        const femaleOption = document.createElement('option');
+                        femaleOption.value = preferredFemaleVoice.name;
+                        femaleOption.textContent = `Female Voice (${preferredFemaleVoice.name})`;
+                        voiceSelect.appendChild(femaleOption);
+                    }
+                    if (preferredMaleVoice) {
+                        const maleOption = document.createElement('option');
+                        maleOption.value = preferredMaleVoice.name;
+                        maleOption.textContent = `Male Voice (${preferredMaleVoice.name})`;
+                        voiceSelect.appendChild(maleOption);
+                    }
+
+                    // Fallback: add any other English voices if no preferred ones were found
+                    if (voiceSelect.options.length === 0) {
+                        availableVoices.filter(v => v.lang.startsWith('en')).forEach(voice => {
+                            const option = document.createElement('option');
+                            option.value = voice.name;
+                            option.textContent = voice.name;
+                            voiceSelect.appendChild(option);
+                        });
+                    }
+
+                    // Set the selected voice in the dropdown based on localStorage or default
+                    if (selectedVoiceName) {
+                        voiceSelect.value = selectedVoiceName;
+                        selectedVoice = availableVoices.find(v => v.name === selectedVoiceName);
+                    } else if (voiceSelect.options.length > 0) {
+                        // If no saved voice, default to the first available option in the dropdown
+                        voiceSelect.selectedIndex = 0;
+                        selectedVoiceName = voiceSelect.value;
+                        selectedVoice = availableVoices.find(v => v.name === selectedVoiceName);
+                        localStorage.setItem('deadlySailsSelectedVoiceName', selectedVoiceName);
+                    }
+                    console.log("TTS Voices populated. Selected voice:", selectedVoice ? selectedVoice.name : 'None');
+                };
+
+                // Event listener for when voices are loaded/changed
+                speechSynthesis.onvoiceschanged = populateVoices;
+                // Call it immediately in case voices are already loaded
+                populateVoices();
+
+                // Add event listeners for TTS controls
+                ttsToggle.addEventListener('change', () => {
+                    speechSynthesisEnabled = ttsToggle.checked;
+                    localStorage.setItem('deadlySailsSpeechEnabled', speechSynthesisEnabled);
+                    if (!speechSynthesisEnabled) {
+                        speechSynthesis.cancel(); // Stop speaking if turned off
+                    }
+                    console.log("TTS enabled:", speechSynthesisEnabled);
+                });
+
+                voiceSelect.addEventListener('change', () => {
+                    selectedVoiceName = voiceSelect.value;
+                    selectedVoice = availableVoices.find(voice => voice.name === selectedVoiceName);
+                    localStorage.setItem('deadlySailsSelectedVoiceName', selectedVoiceName);
+                    console.log("TTS voice changed to:", selectedVoiceName);
+                });
+
+                volumeSlider.addEventListener('input', () => {
+                    speechVolume = parseFloat(volumeSlider.value);
+                    localStorage.setItem('deadlySailsSpeechVolume', speechVolume);
+                    console.log("TTS volume changed to:", speechVolume);
+                });
+
+            } else {
+                // If Web Speech API is not supported
+                document.getElementById('tts-toggle').disabled = true;
+                document.getElementById('tts-voice-select').disabled = true;
+                document.getElementById('tts-volume-slider').disabled = true;
+                updateMessage('SailSpinner\'s voice not supported in this browser, matey!', 'red');
+                console.warn("SpeechSynthesis API not supported in this browser.");
+            }
+        }
+
+        function speakNarrative(text) {
+            if (speechSynthesisEnabled && 'speechSynthesis' in window) {
+                speechSynthesis.cancel(); // Stop any current speech
+                const utterance = new SpeechSynthesisUtterance(text);
+                
+                // Ensure selectedVoice is up-to-date in case it was set by populateVoices after initial load
+                if (!selectedVoice && selectedVoiceName) {
+                    selectedVoice = availableVoices.find(v => v.name === selectedVoiceName);
+                }
+
+                if (selectedVoice) {
+                    utterance.voice = selectedVoice;
+                } else if (availableVoices.length > 0) {
+                    // Fallback to the first available English voice if selectedVoice is somehow not set
+                    const firstEnglishVoice = availableVoices.find(v => v.lang.startsWith('en'));
+                    if (firstEnglishVoice) {
+                        utterance.voice = firstEnglishVoice;
+                        selectedVoice = firstEnglishVoice; // Also update selectedVoice
+                        selectedVoiceName = firstEnglishVoice.name;
+                        localStorage.setItem('deadlySailsSelectedVoiceName', selectedVoiceName);
+                    } else {
+                        console.warn("No English voices available for TTS.");
+                        return; // Cannot speak if no voices
+                    }
+                } else {
+                    console.warn("No voices available for TTS.");
+                    return; // Cannot speak if no voices
+                }
+                
+                utterance.volume = speechVolume; // Set volume
+                utterance.rate = 1; // You can adjust speed (0.1 to 10)
+                utterance.pitch = 1; // You can adjust pitch (0 to 2)
+
+                speechSynthesis.speak(utterance);
+                console.log("Speaking narrative:", text);
+            }
+        }
+
+
+        function setupGameScreenListeners() {
+            const gameInput = document.getElementById('game-input');
+            const sendButton = document.getElementById('send-input-button');
+            const voiceButton = document.getElementById('voice-input-button');
+            const saveButtonGameScreen = document.getElementById('save-game-button-game-screen'); // New save button
+
+            gameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    handleSendInput();
+                }
+            });
+            sendButton.addEventListener('click', handleSendInput);
+            voiceButton.addEventListener('click', toggleVoiceInput);
+            if (saveButtonGameScreen) { // Check if element exists before adding listener
+                saveButtonGameScreen.addEventListener('click', saveGame); // Listener for the new save button
+            }
+
+            // Initialize SpeechRecognition
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false; // Only listen for one phrase at a time
+                recognition.interimResults = false; // Only return final results
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => {
+                    isListening = true;
+                    updateMessage('Listening for yer orders, Captain...');
+                    voiceButton.classList.remove('bg-gradient-to-r', 'from-orange-700', 'to-red-700', 'hover:from-orange-800', 'hover:to-red-800');
+                    voiceButton.classList.add('bg-red-600', 'hover:bg-red-700');
+                    voiceButton.textContent = 'Silence!';
+                    setGameInputDisabled(true); // Disable text input while listening
+                    gameInput.placeholder = 'Shouting orders...';
+                    console.log("Speech recognition started.");
+                };
+
+                recognition.onresult = (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    gameInput.value = transcript;
+                    updateMessage(`Heard: "${transcript}"`);
+                    isListening = false;
+                    voiceButton.classList.add('bg-gradient-to-r', 'from-orange-700', 'to-red-700', 'hover:from-orange-800', 'hover:to-red-800');
+                    voiceButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    voiceButton.textContent = 'Shout Orders';
+                    setGameInputDisabled(false);
+                    gameInput.placeholder = 'Type yer orders (!ORDERS for help)...';
+                    console.log("Speech recognition result:", transcript);
+                };
+
+                recognition.onerror = (event) => {
+                    console.error('Speech recognition error:', event.error);
+                    if (event.error === 'not-allowed') {
+                        updateMessage('Microphone access denied. Please enable microphone permissions in your browser settings to use voice input. The page may need to be reloaded after changing permissions.', 'red');
+                    } else {
+                        updateMessage(`Voice input error: ${event.error}. Perhaps a mischievous parrot?`, 'red');
+                    }
+                    isListening = false;
+                    voiceButton.classList.add('bg-gradient-to-r', 'from-orange-700', 'to-red-700', 'hover:from-orange-800', 'hover:to-red-800');
+                    voiceButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    voiceButton.textContent = 'Shout Orders';
+                    setGameInputDisabled(false);
+                    gameInput.placeholder = 'Type yer orders (!ORDERS for help)...';
+                };
+
+                recognition.onend = () => {
+                    isListening = false;
+                    // Clear message if it's a generic "listening" message
+                    const currentMessage = document.getElementById('game-message').textContent;
+                    if (currentMessage === 'Listening for yer orders, Captain...') {
+                        updateMessage('');
+                    }
+                    voiceButton.classList.add('bg-gradient-to-r', 'from-orange-700', 'to-red-700', 'hover:from-orange-800', 'hover:to-red-800');
+                    voiceButton.classList.remove('bg-red-600', 'hover:bg-red-700');
+                    voiceButton.textContent = 'Shout Orders';
+                    setGameInputDisabled(false);
+                    gameInput.placeholder = 'Type yer orders (!ORDERS for help)...';
+                    console.log("Speech recognition ended.");
+                };
+            } else {
+                voiceButton.disabled = true;
+                voiceButton.textContent = 'Voice Not Supported';
+                updateMessage('Speech recognition not supported in this browser, matey. Voice input is disabled.', 'red');
+                console.warn("SpeechRecognition API not supported in this browser.");
+            }
+        }
+
+        // --- Initial Application Setup ---
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Start the character creator
+            renderCharacterCreator();
+        });
+
+    </script>
+</body>
+</html>
