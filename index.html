@@ -149,8 +149,8 @@
         // =====================================================================================================================================================
         // IMPORTANT: API Configuration for Google Gemini via your Render Backend Proxy
         // Set API_URL to the root URL of your deployed Render backend service.
-        // The API_KEY is now securely handled by your backend, not exposed in the frontend.
-        const API_URL = "https://my-deadly-sails-backend.onrender.com"; // <--- IMPORTANT: REPLACE THIS with your actual Render backend URL!
+        // The API key is securely handled by your backend and is NOT exposed in this frontend code.
+        const API_URL = "YOUR_RENDER_BACKEND_URL_HERE"; // <--- IMPORTANT: REPLACE THIS with your actual Render backend URL!
         // Example: const API_URL = "https://my-deadly-sails-backend.onrender.com";
         // =====================================================================================================================================================
 
@@ -1159,29 +1159,26 @@
             `;
 
             try {
-                const chatPayload = [{ role: "user", parts: [{ text: memoryPrompt }] }];
-                const payload = {
-                    contents: chatPayload,
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: "OBJECT",
-                            properties: {
-                                locations: { type: "ARRAY", items: { type: "STRING" } },
-                                people: { type: "ARRAY", items: { type: "STRING" } },
-                                events: { type: "ARRAY", items: { type: "STRING" } }
-                            },
-                            required: ["locations", "people", "events"] // All three arrays are required
-                        }
-                    }
-                };
-
                 console.log("Attempting to call Memory Agent AI at:", API_URL);
 
                 const response = await fetch(API_URL, { // API_URL now points to your Render backend
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        contents: [{ role: "user", parts: [{ text: memoryPrompt }] }],
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    locations: { type: "ARRAY", items: { type: "STRING" } },
+                                    people: { type: "ARRAY", items: { type: "STRING" } },
+                                    events: { type: "ARRAY", items: { type: "STRING" } }
+                                },
+                                required: ["locations", "people", "events"] // All three arrays are required
+                            }
+                        }
+                    })
                 });
 
                 console.log("Memory Agent AI Response Status:", response.status);
@@ -1331,36 +1328,33 @@
             let deathSummary = null;
 
             try {
-                const chatPayload = [{ role: "user", parts: [{ text: prompt }] }];
-                const payload = {
-                    contents: chatPayload, // Use chatPayload for the main narrative call
-                    generationConfig: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: "OBJECT",
-                            properties: {
-                                narrative: { type: "STRING" },
-                                healthChange: { type: "NUMBER", nullable: true },
-                                creditsChange: { type: "NUMBER", nullable: true },
-                                xpChange: { type: "NUMBER", nullable: true },
-                                statBonus: {
-                                    type: "OBJECT",
-                                    properties: { stat: { type: "STRING" }, amount: { type: "NUMBER" } },
-                                    nullable: true
-                                },
-                                notableMomentsSummary: { type: "STRING", nullable: true },
-                            },
-                            required: ["narrative"]
-                        }
-                    }
-                };
-
                 console.log("Attempting to call Main Narrative AI at:", API_URL);
 
                 const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        contents: [{ role: "user", parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                            responseSchema: {
+                                type: "OBJECT",
+                                properties: {
+                                    narrative: { type: "STRING" },
+                                    healthChange: { type: "NUMBER", nullable: true },
+                                    creditsChange: { type: "NUMBER", nullable: true },
+                                    xpChange: { type: "NUMBER", nullable: true },
+                                    statBonus: {
+                                        type: "OBJECT",
+                                        properties: { stat: { type: "STRING" }, amount: { type: "NUMBER" } },
+                                        nullable: true
+                                    },
+                                    notableMomentsSummary: { type: "STRING", nullable: true },
+                                },
+                                required: ["narrative"]
+                            }
+                        }
+                    })
                 });
 
                 console.log("Main Narrative AI Response Status:", response.status);
@@ -1560,13 +1554,13 @@
                 document.getElementById('tts-toggle').disabled = true;
                 document.getElementById('tts-voice-select').disabled = true;
                 document.getElementById('tts-volume-slider').disabled = true;
-                updateMessage('SailSpinner\'s voice not supported in this browser, matey!', 'red');
+                updateMessage('Speech recognition not supported in this browser, matey!', 'red');
                 console.warn("SpeechSynthesis API not supported in this browser.");
             }
         }
 
         function speakNarrative(text) {
-            if (speechSynthesisEnabled && 'speechSynthesis' in window) {
+            if ('speechSynthesis' in window && speechSynthesisEnabled) {
                 speechSynthesis.cancel(); // Stop any current speech
                 const utterance = new SpeechSynthesisUtterance(text);
                 
