@@ -147,25 +147,11 @@
         let availableVoices = []; // Cache for voices
 
         // =====================================================================================================================================================
-        // IMPORTANT: API Key for Google Gemini
-        // This key will be provided by the Canvas environment when running in preview.
-        // If you download and host this file elsewhere (e.g., Itch.io), you will need to replace
-        // the empty string with your own valid Google Cloud API key and configure its HTTP referrer restrictions.
-        //
-        // How to get an API Key for external hosting:
-        // 1. Go to Google Cloud Console: https://console.cloud.google.com/
-        // 2. Create a new project or select an existing one.
-        // 3. Navigate to "APIs & Services" > "Credentials".
-        // 4. Click "Create Credentials" > "API Key".
-        // 5. IMPORTANT: You MUST restrict this API key. In the "API restrictions" section, select "Restrict key".
-        //    For "Application restrictions", choose "HTTP referrers (web sites)" and add the domains where your game will be hosted.
-        //    - For Itch.io, this might include your specific Itch.io game URL (e.g., `https://your-username.itch.io/your-game-name/*`) and `https://itch.io/*`.
-        //    - For local testing, you might need to add `http://localhost:*` or `http://127.0.0.1:*`.
-        //    - Ensure the "Generative Language API" is enabled in your Google Cloud project for this API key to function.
-        // WARNING: Embedding API keys directly in client-side code is generally insecure for production applications.
-        // For production, consider using a backend proxy to handle API calls securely.
-        const API_KEY = ""; // Keep this empty for Canvas preview to work automatically
-        const API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + API_KEY;
+        // IMPORTANT: API Configuration for Google Gemini via your Render Backend Proxy
+        // Set API_URL to the root URL of your deployed Render backend service.
+        // The API_KEY is now securely handled by your backend, not exposed in the frontend.
+        const API_URL = "https://my-deadly-sails-backend.onrender.com"; // <--- IMPORTANT: REPLACE THIS with your actual Render backend URL!
+        // Example: const API_URL = "https://my-deadly-sails-backend.onrender.com";
         // =====================================================================================================================================================
 
         // Define race data with stat modifiers (Only Human for Pirate theme)
@@ -1190,9 +1176,9 @@
                     }
                 };
 
-                console.log("Attempting to call Memory Agent AI...");
+                console.log("Attempting to call Memory Agent AI at:", API_URL);
 
-                const response = await fetch(API_URL, { // API_URL already includes API_KEY
+                const response = await fetch(API_URL, { // API_URL now points to your Render backend
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -1204,21 +1190,30 @@
 
                 console.log("Full Memory Agent AI Response (parsed):", result);
 
-                if (response.ok && result.candidates && result.candidates.length > 0 &&
-                    result.candidates[0].content && result.candidates[0].content.parts &&
-                    result.candidates[0].content.parts.length > 0) {
-                    const jsonText = result.candidates[0].content.parts[0].text;
-                    const finalMemoryResponse = JSON.parse(jsonText);
+                if (response.ok) {
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const jsonText = result.candidates[0].content.parts[0].text;
+                        const finalMemoryResponse = JSON.parse(jsonText);
 
-                    longTermMemory.locations = finalMemoryResponse.locations || [];
-                    longTermMemory.people = finalMemoryResponse.people || [];
-                    longTermMemory.events = finalMemoryResponse.events || [];
-                    console.log("Long-term memory updated (via Memory Agent):", longTermMemory);
+                        longTermMemory.locations = finalMemoryResponse.locations || [];
+                        longTermMemory.people = finalMemoryResponse.people || [];
+                        longTermMemory.events = finalMemoryResponse.events || [];
+                        console.log("Long-term memory updated (via Memory Agent):", longTermMemory);
 
+                    } else {
+                        console.error("Failed to get valid response from Memory Agent AI:", result);
+                    }
                 } else {
-                    console.error("Failed to get valid response from Memory Agent AI:", result);
+                    const errorData = result.error ? result.error.message : JSON.stringify(result);
+                    const errorMessage = `Failed to get Memory Agent response: API Error (${response.status} ${response.statusText}): ${errorData}. Check console for "Full Memory Agent AI Response:".`;
+                    updateMessage(errorMessage, 'red');
+                    console.error(errorMessage, result);
                 }
             } catch (error) {
+                const errorMessage = `A squall hit during memory update: ${error.message}. This might be due to a cursed URL or a network kraken. Check console for details.`;
+                updateMessage(errorMessage, 'red');
                 console.error("Fetch error during Memory Agent AI call:", error);
             }
         }
