@@ -148,10 +148,10 @@
 
         // =====================================================================================================================================================
         // IMPORTANT: API Configuration for Google Gemini via your Render Backend Proxy
-        // Set API_URL to the root URL of your deployed Render backend service.
+        // Set API_URL to the root URL of your deployed Render backend service, PLUS the /generateContent path.
         // The API key is securely handled by your backend and is NOT exposed in this frontend code.
-        const API_URL = "YOUR_RENDER_BACKEND_URL_HERE"; // <--- IMPORTANT: REPLACE THIS with your actual Render backend URL!
-        // Example: const API_URL = "https://deadlysailsbackend.onrender.com";
+        const API_URL = "https://deadlysailsbackend.onrender.com/generateContent"; // <--- IMPORTANT: REPLACE "YOUR_RENDER_BACKEND_URL_HERE" with your actual Render backend URL!
+        // Example: const API_URL = "https://deadlysailsbackend.onrender.com/generateContent";
         // =====================================================================================================================================================
 
         // Define race data with stat modifiers (Only Human for Pirate theme)
